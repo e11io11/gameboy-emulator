@@ -12,8 +12,26 @@ enum Operation {
     Scf,
     Ccf,
     Ld { dest: Operand, source: Operand },
+    Jr { cond: Condition, dest: Operand },
+    Stop(u8),
+    Inc(Register),
+    Dec(Register),
+    Add(Operand, Operand),
     Unrecognised,
-    //Stop,
+}
+
+#[derive(Debug)]
+enum Condition {
+    True,
+    Cond(Cond),
+}
+
+#[derive(Debug)]
+enum Cond {
+    Nz,
+    Z,
+    Nc,
+    C,
 }
 
 #[derive(Debug)]
@@ -66,6 +84,36 @@ enum Operand {
     U16(u16),
 }
 
+impl From<u8> for R8 {
+    fn from(input: u8) -> R8 {
+        let masked = apply_mask(input, 0b11111000);
+        match masked {
+            0b11111000 => return R8::B,
+            0b11111001 => return R8::C,
+            0b11111010 => return R8::D,
+            0b11111011 => return R8::E,
+            0b11111100 => return R8::H,
+            0b11111101 => return R8::L,
+            0b11111110 => return R8::Hl,
+            0b11111111 => return R8::A,
+            _ => panic!("This should never happen."),
+        }
+    }
+}
+
+impl From<u8> for Cond {
+    fn from(input: u8) -> Cond {
+        let masked = apply_mask(input, 0b11111100);
+        match masked {
+            0b11111100 => return Cond::Nz,
+            0b11111101 => return cond::Z,
+            0b11111110 => return Cond::Nc,
+            0b11111111 => return Cond::C,
+            _ => panic!("This should never happen."),
+        }
+    }
+}
+
 impl From<u8> for R16 {
     fn from(input: u8) -> R16 {
         let masked = apply_mask(input, 0b11111100);
@@ -105,6 +153,7 @@ fn apply_mask_equal(input: u8, mask: u8) -> bool {
 }
 
 fn block_0(bytes: &[u8]) -> (Operation, usize) {
+    // Instructions starting bith bits 00
     assert!(!bytes.is_empty());
     let current = bytes[0];
     match current {
@@ -117,6 +166,7 @@ fn block_0(bytes: &[u8]) -> (Operation, usize) {
         0b00101111 => return (Operation::Cpl, 1),
         0b00110111 => return (Operation::Scf, 1),
         0b00111111 => return (Operation::Ccf, 1),
+        0b00010000 => return (Operation::Stop(bytes[1]), 2),
         _ => (),
     }
     if apply_mask(current, 0b00110000) == 0b00110001 {
@@ -146,6 +196,55 @@ fn block_0(bytes: &[u8]) -> (Operation, usize) {
         let dest = Operand::Address(Address::U16(to_u16_litle_endian(bytes[1], bytes[2])));
         let source = Operand::Register(Register::R16(R16::Sp));
         return (Operation::Ld { dest, source }, 3);
+    }
+    if apply_mask(current, 0b00110000) == 0b00110011 {
+        // inc r16
+        return (
+            Operation::Inc(Register::R16(R16::from((current << 2) >> 6))),
+            1,
+        );
+    }
+    if apply_mask(current, 0b00110000) == 0b00111011 {
+        // dec r16
+        return (
+            Operation::Dec(Register::R16(R16::from((current << 2) >> 6))),
+            1,
+        );
+    }
+    if apply_mask(current, 0b00110000) == 0b00111001 {
+        // add hl, r16
+        let op1 = Operand::Register(Register::R16(R16::Hl));
+        let op2 = Operand::Register(Register::R16(R16::from((current << 2) >> 6)));
+        return (Operation::Add(op1, op2), 1);
+    }
+    if apply_mask(current, 0b00111000) == 0b00111100 {
+        // inc r8
+        return (
+            Operation::Inc(Register::R8(R8::from((current << 2) >> 5))),
+            1,
+        );
+    }
+    if apply_mask(current, 0b00111000) == 0b00111101 {
+        // dec r8
+        return (
+            Operation::Dec(Register::R8(R8::from((current << 2) >> 5))),
+            1,
+        );
+    }
+    if apply_mask(current, 0b00111000) == 0b00111110 {
+        // ld r8, imm8
+        let dest = Operand::Register(Register::R8(R8::from((current << 2) >> 5)));
+        let source = Operand::Address(Address::U8(bytes[1]));
+        return (Operation::Ld { dest, source }, 2);
+    }
+    if current == 0b00011000 {
+        // jr imm8
+        let cond = Condition::True;
+        let dest = Operand::U8(bytes[1]);
+        return (Operation::Jr { cond, dest }, 2);
+    }
+    if apply_mask(current, 0b00011000) == 0b00111000 {
+        let cond = Condition::Cond(Cond::from((current << 3) >> 6));
     }
 
     return (Operation::Unrecognised, 1);
