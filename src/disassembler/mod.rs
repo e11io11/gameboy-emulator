@@ -1,7 +1,7 @@
-use std::usize;
+use std::{error::Error, fmt::Result, usize};
 
 #[derive(Debug)]
-enum Operation {
+pub enum Operation {
     Nop,
     Rlca,
     Rrca,
@@ -21,13 +21,13 @@ enum Operation {
 }
 
 #[derive(Debug)]
-enum Condition {
+pub enum Condition {
     True,
     Cond(Cond),
 }
 
 #[derive(Debug)]
-enum Cond {
+pub enum Cond {
     Nz,
     Z,
     Nc,
@@ -35,7 +35,7 @@ enum Cond {
 }
 
 #[derive(Debug)]
-enum R8 {
+pub enum R8 {
     B,
     C,
     D,
@@ -47,7 +47,7 @@ enum R8 {
 }
 
 #[derive(Debug)]
-enum R16 {
+pub enum R16 {
     Bc,
     De,
     Hl,
@@ -55,7 +55,7 @@ enum R16 {
 }
 
 #[derive(Debug)]
-enum R16mem {
+pub enum R16mem {
     Bc,
     De,
     Hli,
@@ -63,25 +63,30 @@ enum R16mem {
 }
 
 #[derive(Debug)]
-enum Register {
+pub enum Register {
     R8(R8),
     R16(R16),
     R16mem(R16mem),
 }
 
 #[derive(Debug)]
-enum Address {
+pub enum Address {
     Register(Register),
     U8(u8),
     U16(u16),
 }
 
 #[derive(Debug)]
-enum Operand {
+pub enum Operand {
     Address(Address),
     Register(Register),
     U8(u8),
     U16(u16),
+}
+
+pub enum DisassemblyError {
+    MissingOperand(u8),
+    UnrecognisedOperation(u8),
 }
 
 impl From<u8> for R8 {
@@ -106,7 +111,7 @@ impl From<u8> for Cond {
         let masked = apply_mask(input, 0b11111100);
         match masked {
             0b11111100 => return Cond::Nz,
-            0b11111101 => return cond::Z,
+            0b11111101 => return Cond::Z,
             0b11111110 => return Cond::Nc,
             0b11111111 => return Cond::C,
             _ => panic!("This should never happen."),
@@ -152,28 +157,36 @@ fn apply_mask_equal(input: u8, mask: u8) -> bool {
     return apply_mask(input, mask) == mask;
 }
 
-fn block_0(bytes: &[u8]) -> (Operation, usize) {
+fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     // Instructions starting bith bits 00
     assert!(!bytes.is_empty());
     let current = bytes[0];
     match current {
-        0b00000000 => return (Operation::Nop, 1),
-        0b00000111 => return (Operation::Rlca, 1),
-        0b00001111 => return (Operation::Rrca, 1),
-        0b00010111 => return (Operation::Rla, 1),
-        0b00011111 => return (Operation::Rra, 1),
-        0b00100111 => return (Operation::Daa, 1),
-        0b00101111 => return (Operation::Cpl, 1),
-        0b00110111 => return (Operation::Scf, 1),
-        0b00111111 => return (Operation::Ccf, 1),
-        0b00010000 => return (Operation::Stop(bytes[1]), 2),
+        0b00000000 => return Ok((Operation::Nop, 1)),
+        0b00000111 => return Ok((Operation::Rlca, 1)),
+        0b00001111 => return Ok((Operation::Rrca, 1)),
+        0b00010111 => return Ok((Operation::Rla, 1)),
+        0b00011111 => return Ok((Operation::Rra, 1)),
+        0b00100111 => return Ok((Operation::Daa, 1)),
+        0b00101111 => return Ok((Operation::Cpl, 1)),
+        0b00110111 => return Ok((Operation::Scf, 1)),
+        0b00111111 => return Ok((Operation::Ccf, 1)),
+        0b00010000 => {
+            if bytes.len() < 2 {
+                return Err(MissingOperand(current));
+            }
+            return Ok((Operation::Stop(bytes[1]), 2));
+        }
         _ => (),
     }
     if apply_mask(current, 0b00110000) == 0b00110001 {
         // ld r16, imm16
+        if bytes.len() < 3 {
+            return Err(MissingOperand(current));
+        }
         let dest = Operand::Register(Register::R16(R16::from((current << 2) >> 6)));
         let source = Operand::U16(to_u16_litle_endian(bytes[1], bytes[2]));
-        return (Operation::Ld { dest, source }, 3);
+        return Ok((Operation::Ld { dest, source }, 3));
     }
     if apply_mask(current, 0b00110000) == 0b00110010 {
         // ld [r16mem], a
@@ -245,6 +258,8 @@ fn block_0(bytes: &[u8]) -> (Operation, usize) {
     }
     if apply_mask(current, 0b00011000) == 0b00111000 {
         let cond = Condition::Cond(Cond::from((current << 3) >> 6));
+        let dest = Operand::U8(bytes[1]);
+        return (Operation::Jr { cond, dest }, 2);
     }
 
     return (Operation::Unrecognised, 1);
@@ -259,18 +274,13 @@ fn next_operation(bytes: &[u8]) -> (Operation, usize) {
     return (Operation::Unrecognised, 1);
 }
 
-fn main() {
-    let input = [
-        0b00001000, 0b00110111, 0b00010001, 0b00010010, 0b00011001, 0b00011111, 0b00110001,
-        0b11000001, 0b11111001, 0b00011001, 0b00110010, 0b00110001, 0b11000001, 0b11111001,
-        0b00111010, 0b00110111, 0b00010001, 0b00110001, 0b11011101, 0b00011001, 0b00011111,
-        0b00110001, 0b11000001, 0b11111001,
-    ];
-    let mut bytes: &[u8] = &input;
+pub fn disassemble(mut bytes: &[u8]) -> Vec<Operation> {
+    let mut operations = vec![];
     while !bytes.is_empty() {
-        //print!("{:?}\n", bytes);
         let (operation, offset) = next_operation(bytes);
         print!("{:?}\n", operation);
+        operations.push(operation);
         bytes = &bytes[offset..];
     }
+    return operations;
 }
