@@ -1,6 +1,7 @@
 use disassembler::disassemble;
 
 mod disassembler;
+mod hardware;
 
 fn main() {
     let input = [
@@ -9,5 +10,8 @@ fn main() {
         0b00111010, 0b00110111, 0b00010001, 0b00110001, 0b11011101, 0b00011001, 0b00011111,
         0b00110001, 0b11000001, 0b11111001,
     ];
-    disassemble(&input);
+    match disassemble(&input) {
+        Ok(instructions) => println!("{:?}", instructions),
+        Err(e) => println!("{:?}", e),
+    }
 }

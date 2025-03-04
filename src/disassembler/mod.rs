@@ -1,5 +1,3 @@
-use std::{error::Error, fmt::Result, usize};
-
 #[derive(Debug)]
 pub enum Operation {
     Nop,
@@ -17,7 +15,6 @@ pub enum Operation {
     Inc(Register),
     Dec(Register),
     Add(Operand, Operand),
-    Unrecognised,
 }
 
 #[derive(Debug)]
@@ -84,6 +81,7 @@ pub enum Operand {
     U16(u16),
 }
 
+#[derive(Debug)]
 pub enum DisassemblyError {
     MissingOperand(u8),
     UnrecognisedOperation(u8),
@@ -173,7 +171,7 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
         0b00111111 => return Ok((Operation::Ccf, 1)),
         0b00010000 => {
             if bytes.len() < 2 {
-                return Err(MissingOperand(current));
+                return Err(DisassemblyError::MissingOperand(current));
             }
             return Ok((Operation::Stop(bytes[1]), 2));
         }
@@ -182,7 +180,7 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     if apply_mask(current, 0b00110000) == 0b00110001 {
         // ld r16, imm16
         if bytes.len() < 3 {
-            return Err(MissingOperand(current));
+            return Err(DisassemblyError::MissingOperand(current));
         }
         let dest = Operand::Register(Register::R16(R16::from((current << 2) >> 6)));
         let source = Operand::U16(to_u16_litle_endian(bytes[1], bytes[2]));
@@ -194,7 +192,7 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
             (current << 2) >> 6,
         ))));
         let source = Operand::Register(Register::R8(R8::A));
-        return (Operation::Ld { dest, source }, 1);
+        return Ok((Operation::Ld { dest, source }, 1));
     }
     if apply_mask(current, 0b00110000) == 0b00111010 {
         // ld a, [r16mem]
@@ -202,85 +200,85 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
         let source = Operand::Address(Address::Register(Register::R16mem(R16mem::from(
             (current << 2) >> 6,
         ))));
-        return (Operation::Ld { dest, source }, 1);
+        return Ok((Operation::Ld { dest, source }, 1));
     }
     if current == 0b00001000 {
         // ld [imm16], sp
         let dest = Operand::Address(Address::U16(to_u16_litle_endian(bytes[1], bytes[2])));
         let source = Operand::Register(Register::R16(R16::Sp));
-        return (Operation::Ld { dest, source }, 3);
+        return Ok((Operation::Ld { dest, source }, 3));
     }
     if apply_mask(current, 0b00110000) == 0b00110011 {
         // inc r16
-        return (
+        return Ok((
             Operation::Inc(Register::R16(R16::from((current << 2) >> 6))),
             1,
-        );
+        ));
     }
     if apply_mask(current, 0b00110000) == 0b00111011 {
         // dec r16
-        return (
+        return Ok((
             Operation::Dec(Register::R16(R16::from((current << 2) >> 6))),
             1,
-        );
+        ));
     }
     if apply_mask(current, 0b00110000) == 0b00111001 {
         // add hl, r16
         let op1 = Operand::Register(Register::R16(R16::Hl));
         let op2 = Operand::Register(Register::R16(R16::from((current << 2) >> 6)));
-        return (Operation::Add(op1, op2), 1);
+        return Ok((Operation::Add(op1, op2), 1));
     }
     if apply_mask(current, 0b00111000) == 0b00111100 {
         // inc r8
-        return (
+        return Ok((
             Operation::Inc(Register::R8(R8::from((current << 2) >> 5))),
             1,
-        );
+        ));
     }
     if apply_mask(current, 0b00111000) == 0b00111101 {
         // dec r8
-        return (
+        return Ok((
             Operation::Dec(Register::R8(R8::from((current << 2) >> 5))),
             1,
-        );
+        ));
     }
     if apply_mask(current, 0b00111000) == 0b00111110 {
         // ld r8, imm8
         let dest = Operand::Register(Register::R8(R8::from((current << 2) >> 5)));
         let source = Operand::Address(Address::U8(bytes[1]));
-        return (Operation::Ld { dest, source }, 2);
+        return Ok((Operation::Ld { dest, source }, 2));
     }
     if current == 0b00011000 {
         // jr imm8
         let cond = Condition::True;
         let dest = Operand::U8(bytes[1]);
-        return (Operation::Jr { cond, dest }, 2);
+        return Ok((Operation::Jr { cond, dest }, 2));
     }
     if apply_mask(current, 0b00011000) == 0b00111000 {
+        // jr cond, imm8
         let cond = Condition::Cond(Cond::from((current << 3) >> 6));
         let dest = Operand::U8(bytes[1]);
-        return (Operation::Jr { cond, dest }, 2);
+        return Ok((Operation::Jr { cond, dest }, 2));
     }
 
-    return (Operation::Unrecognised, 1);
+    return Err(DisassemblyError::UnrecognisedOperation(current));
 }
 
-fn next_operation(bytes: &[u8]) -> (Operation, usize) {
+fn next_operation(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     assert!(!bytes.is_empty());
     let current = bytes[0];
     if apply_mask_equal(current, 0b00111111) {
         return block_0(bytes);
     }
-    return (Operation::Unrecognised, 1);
+    return Err(DisassemblyError::UnrecognisedOperation(current));
 }
 
-pub fn disassemble(mut bytes: &[u8]) -> Vec<Operation> {
+pub fn disassemble(mut bytes: &[u8]) -> Result<Vec<Operation>, DisassemblyError> {
     let mut operations = vec![];
     while !bytes.is_empty() {
-        let (operation, offset) = next_operation(bytes);
-        print!("{:?}\n", operation);
+        let (operation, offset) = next_operation(bytes)?;
         operations.push(operation);
         bytes = &bytes[offset..];
     }
-    return operations;
+    return Ok(operations);
 }
