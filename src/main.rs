@@ -1,7 +1,8 @@
-use disassembler::disassemble;
-
 mod disassembler;
 mod hardware;
+pub mod utils;
+
+use disassembler::disassemble;
 
 fn main() {
     let input = [

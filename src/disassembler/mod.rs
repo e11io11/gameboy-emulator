@@ -1,3 +1,5 @@
+use crate::utils::bytes_to_word_little_endian;
+
 #[derive(Debug)]
 pub enum Operation {
     Nop,
@@ -143,10 +145,6 @@ impl From<u8> for R16mem {
     }
 }
 
-fn to_u16_litle_endian(fst: u8, snd: u8) -> u16 {
-    return ((snd as u16) << 8) + fst as u16;
-}
-
 fn apply_mask(input: u8, mask: u8) -> u8 {
     return input | mask;
 }
@@ -183,7 +181,7 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
             return Err(DisassemblyError::MissingOperand(current));
         }
         let dest = Operand::Register(Register::R16(R16::from((current << 2) >> 6)));
-        let source = Operand::U16(to_u16_litle_endian(bytes[1], bytes[2]));
+        let source = Operand::U16(bytes_to_word_little_endian(bytes[1], bytes[2]));
         return Ok((Operation::Ld { dest, source }, 3));
     }
     if apply_mask(current, 0b00110000) == 0b00110010 {
@@ -204,7 +202,9 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     }
     if current == 0b00001000 {
         // ld [imm16], sp
-        let dest = Operand::Address(Address::U16(to_u16_litle_endian(bytes[1], bytes[2])));
+        let dest = Operand::Address(Address::U16(bytes_to_word_little_endian(
+            bytes[1], bytes[2],
+        )));
         let source = Operand::Register(Register::R16(R16::Sp));
         return Ok((Operation::Ld { dest, source }, 3));
     }
