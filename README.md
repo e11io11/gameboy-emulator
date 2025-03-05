@@ -8,5 +8,5 @@ cargo run
 
 ## Game Boy docs
 
-<https://gbdev.io/>
-<https://gbdev.io/pandocs/>
+- <https://gbdev.io/>
+- <https://gbdev.io/pandocs/>
