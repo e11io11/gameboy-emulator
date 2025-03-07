@@ -39,8 +39,25 @@ pub fn set_word_right_byte(word: u16, byte: u8) -> u16 {
     return bytes_to_word_big_endian(fst, byte);
 }
 
-/// Read the bit subset of interval `[from;to[` from a byte and interprets it as u8
-pub fn read_bits_of_byte(byte: u8, from: usize, to: usize) -> u8 {
+/// Read the bit subset of interval `[from;to[` from a byte and interprets it as u8.
+/// Indexes are read from left to right, e.g. 0b01234567.
+pub fn get_bits_of_byte(byte: u8, from: usize, to: usize) -> u8 {
     assert!(from < 8 && to <= 8 && from <= to);
     return (byte << from) >> (from + (8 - to));
+}
+
+/// Read the bit of index from a byte and interprets it as a bool with 0=False, 1=True.
+/// Index is read from left to right, e.g. 0b01234567.
+pub fn get_bit_of_byte(byte: u8, i: usize) -> bool {
+    assert!(i < 8);
+    return get_bits_of_byte(byte, i, i + 1) == 1;
+}
+
+/// Index is read from left to right, e.g. 0b01234567.
+pub fn set_bit_of_byte(byte: u8, i: usize, bit: bool) -> u8 {
+    assert!(i < 8);
+    if bit {
+        return byte | (1 << i);
+    }
+    return byte & !(1 << i);
 }

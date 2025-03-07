@@ -1,4 +1,5 @@
-use crate::utils::{bytes_to_word_little_endian, read_bits_of_byte};
+use crate::utils::{bytes_to_word_little_endian, get_bits_of_byte};
+use crate::hardware::cpu::Register;
 
 #[derive(Debug)]
 pub enum Operation {
@@ -18,27 +19,6 @@ pub enum Operation {
     INC(Operand),
     DEC(Operand),
     ADD(Operand, Operand),
-}
-
-#[derive(Debug)]
-pub enum Register {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
-    AF,
-    BC,
-    DE,
-    HL,
-    SP,
-    PC,
-    FlagZ,
-    FlagN,
-    FlagH,
-    FlagC,
 }
 
 #[derive(Debug)]
@@ -151,20 +131,20 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
         if bytes.len() < 3 {
             return Err(DisassemblyError::MissingOperand(current));
         }
-        let dest = get_r16(read_bits_of_byte(current, 2, 4));
+        let dest = get_r16(get_bits_of_byte(current, 2, 4));
         let source = Operand::Word(bytes_to_word_little_endian(bytes[1], bytes[2]));
         return Ok((LD(dest, source), 3));
     }
     if apply_mask(current, 0b00110000) == 0b00110010 {
         // ld [r16mem], a
-        let dest = Operand::Address(Box::new(get_r16mem(read_bits_of_byte(current, 2, 4))));
+        let dest = Operand::Address(Box::new(get_r16mem(get_bits_of_byte(current, 2, 4))));
         let source = Operand::Register(A);
         return Ok((LD(dest, source), 1));
     }
     if apply_mask(current, 0b00110000) == 0b00111010 {
         // ld a, [r16mem]
         let dest = Operand::Register(A);
-        let source = Operand::Address(Box::new(get_r16mem(read_bits_of_byte(current, 2, 4))));
+        let source = Operand::Address(Box::new(get_r16mem(get_bits_of_byte(current, 2, 4))));
         return Ok((LD(dest, source), 1));
     }
     if current == 0b00001000 {
@@ -177,29 +157,29 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     }
     if apply_mask(current, 0b00110000) == 0b00110011 {
         // inc r16
-        return Ok((INC(get_r16(read_bits_of_byte(current, 2, 4))), 1));
+        return Ok((INC(get_r16(get_bits_of_byte(current, 2, 4))), 1));
     }
     if apply_mask(current, 0b00110000) == 0b00111011 {
         // dec r16
-        return Ok((DEC(get_r16(read_bits_of_byte(current, 2, 4))), 1));
+        return Ok((DEC(get_r16(get_bits_of_byte(current, 2, 4))), 1));
     }
     if apply_mask(current, 0b00110000) == 0b00111001 {
         // add hl, r16
         let op1 = Operand::Register(HL);
-        let op2 = get_r16(read_bits_of_byte(current, 2, 4));
+        let op2 = get_r16(get_bits_of_byte(current, 2, 4));
         return Ok((ADD(op1, op2), 1));
     }
     if apply_mask(current, 0b00111000) == 0b00111100 {
         // inc r8
-        return Ok((INC(get_r8(read_bits_of_byte(current, 2, 5))), 1));
+        return Ok((INC(get_r8(get_bits_of_byte(current, 2, 5))), 1));
     }
     if apply_mask(current, 0b00111000) == 0b00111101 {
         // dec r8
-        return Ok((DEC(get_r8(read_bits_of_byte(current, 2, 5))), 1));
+        return Ok((DEC(get_r8(get_bits_of_byte(current, 2, 5))), 1));
     }
     if apply_mask(current, 0b00111000) == 0b00111110 {
         // ld r8, imm8
-        let dest = get_r8(read_bits_of_byte(current, 2, 5));
+        let dest = get_r8(get_bits_of_byte(current, 2, 5));
         let source = Operand::Byte(bytes[1]);
         return Ok((LD(dest, source), 2));
     }
@@ -210,7 +190,7 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     }
     if apply_mask(current, 0b00011000) == 0b00111000 {
         // jr cond, imm8
-        let cond = get_cond(read_bits_of_byte(current, 3, 5));
+        let cond = get_cond(get_bits_of_byte(current, 3, 5));
         let dest = Operand::Byte(bytes[1]);
         return Ok((JRC(cond, dest), 2));
     }
