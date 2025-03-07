@@ -2,13 +2,13 @@ use std::usize;
 
 use crate::utils::{bytes_to_word_little_endian, word_to_bytes_little_endian};
 
-struct Memory {
+struct MemoryMap {
     data: Vec<u8>,
 }
 
 struct MemoryOutOfBoundsError(u16);
 
-impl Memory {
+impl MemoryMap {
     fn new(size: usize) -> Self {
         Self {
             data: vec![0; size],
