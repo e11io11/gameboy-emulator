@@ -1,13 +1,12 @@
 use std::usize;
 
+use crate::interpreter::ExecutionError;
+use crate::interpreter::ExecutionError::MemoryOutOfBoundsError;
 use crate::utils::{bytes_to_word_little_endian, word_to_bytes_little_endian};
 
 pub struct MemoryMap {
     data: Vec<u8>,
 }
-
-#[derive(Debug)]
-pub struct MemoryOutOfBoundsError(usize);
 
 impl MemoryMap {
     pub fn new(size: usize) -> Self {
@@ -20,20 +19,20 @@ impl MemoryMap {
         return self.data.len();
     }
 
-    pub fn read_byte(&self, address: usize) -> Result<u8, MemoryOutOfBoundsError> {
+    pub fn read_byte(&self, address: usize) -> Result<u8, ExecutionError> {
         if !self.is_inbound_byte(address) {
             return Err(MemoryOutOfBoundsError(address));
         }
         return Ok(self.data[address]);
     }
 
-    pub fn read_bytes(&self, address: usize, n: usize) -> Result<Vec<u8>, MemoryOutOfBoundsError> {
+    pub fn read_bytes(&self, address: usize, n: usize) -> Result<Vec<u8>, ExecutionError> {
         return (0..n)
             .map(|offset| self.read_byte(address + offset))
             .collect();
     }
 
-    pub fn read_word(&self, address: usize) -> Result<u16, MemoryOutOfBoundsError> {
+    pub fn read_word(&self, address: usize) -> Result<u16, ExecutionError> {
         if !self.is_inbound_word(address) {
             return Err(MemoryOutOfBoundsError(address));
         }
@@ -43,7 +42,7 @@ impl MemoryMap {
         ));
     }
 
-    pub fn write_byte(&mut self, address: usize, byte: u8) -> Result<(), MemoryOutOfBoundsError> {
+    pub fn write_byte(&mut self, address: usize, byte: u8) -> Result<(), ExecutionError> {
         if !self.is_inbound_byte(address) {
             return Err(MemoryOutOfBoundsError(address));
         }
@@ -51,7 +50,7 @@ impl MemoryMap {
         return Ok(());
     }
 
-    pub fn write_word(&mut self, address: usize, word: u16) -> Result<(), MemoryOutOfBoundsError> {
+    pub fn write_word(&mut self, address: usize, word: u16) -> Result<(), ExecutionError> {
         if !self.is_inbound_word(address) {
             return Err(MemoryOutOfBoundsError(address));
         }
@@ -65,7 +64,7 @@ impl MemoryMap {
         &mut self,
         address: usize,
         bytes: Vec<u8>,
-    ) -> Result<(), MemoryOutOfBoundsError> {
+    ) -> Result<(), ExecutionError> {
         for (offset, byte) in bytes.iter().enumerate() {
             self.write_byte(address + offset, *byte)?
         }

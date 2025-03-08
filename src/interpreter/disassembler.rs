@@ -234,6 +234,7 @@ pub fn disassemble_program(bytes: &[u8]) -> Result<Vec<Operation>, DisassemblyEr
     let mut head = 0;
     while head < bytes.len() {
         let (operation, offset) = get_operation(&bytes[head..bytes.len()])?;
+        println!("{:?}", operation);
         operations.push(operation);
         head += offset;
     }
