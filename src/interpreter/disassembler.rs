@@ -1,7 +1,7 @@
-use crate::utils::{bytes_to_word_little_endian, get_bits_of_byte};
 use crate::hardware::cpu::Register;
+use crate::utils::{bytes_to_word_little_endian, get_bits_of_byte, DataSize};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Operation {
     NOP,
     RLCA,
@@ -21,7 +21,7 @@ pub enum Operation {
     ADD(Operand, Operand),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Operand {
     Address(Box<Operand>),
     Register(Register),
@@ -30,6 +30,28 @@ pub enum Operand {
     Not(Register),
     Byte(u8),
     Word(u16),
+}
+
+impl Operand {
+    pub fn get_data_size(&self) -> Option<DataSize> {
+        use DataSize::*;
+        match self {
+            Operand::Register(r) => {
+                if r.is_byte_register() {
+                    return Some(BYTE);
+                }
+                if r.is_word_register() {
+                    return Some(WORD);
+                } else {
+                    return Some(BIT);
+                }
+            }
+            Operand::Decr(_) | Operand::Incr(_) | Operand::Word(_) => return Some(WORD),
+            Operand::Not(_) => return Some(BIT),
+            Operand::Byte(_) => return Some(BYTE),
+            Operand::Address(_) => return None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -198,7 +220,7 @@ fn block_0(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     return Err(DisassemblyError::UnrecognisedOperation(current));
 }
 
-fn next_operation(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
+pub fn get_operation(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> {
     assert!(!bytes.is_empty());
     let current = bytes[0];
     if apply_mask_equal(current, 0b00111111) {
@@ -207,12 +229,13 @@ fn next_operation(bytes: &[u8]) -> Result<(Operation, usize), DisassemblyError> 
     return Err(DisassemblyError::UnrecognisedOperation(current));
 }
 
-pub fn disassemble(mut bytes: &[u8]) -> Result<Vec<Operation>, DisassemblyError> {
+pub fn disassemble_program(bytes: &[u8]) -> Result<Vec<Operation>, DisassemblyError> {
     let mut operations = vec![];
-    while !bytes.is_empty() {
-        let (operation, offset) = next_operation(bytes)?;
+    let mut head = 0;
+    while head < bytes.len() {
+        let (operation, offset) = get_operation(&bytes[head..bytes.len()])?;
         operations.push(operation);
-        bytes = &bytes[offset..];
+        head += offset;
     }
     return Ok(operations);
 }

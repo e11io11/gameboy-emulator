@@ -61,3 +61,10 @@ pub fn set_bit_of_byte(byte: u8, i: usize, bit: bool) -> u8 {
     }
     return byte & !(1 << i);
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum DataSize {
+    BYTE = 8,
+    WORD = 16,
+    BIT = 1,
+}

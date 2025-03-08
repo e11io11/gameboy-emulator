@@ -3,7 +3,7 @@ use crate::utils::{
     set_word_right_byte,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Register {
     A,
     B,
@@ -24,6 +24,41 @@ pub enum Register {
     FlagC,
 }
 
+impl Register {
+    pub fn read(&self, cpu: &CPU) -> u16 {
+        use Register::*;
+        return match self {
+            A | B | C | D | E | H | L => cpu.read_byte(self) as u16,
+            AF | BC | DE | HL | SP | PC => cpu.read_word(self),
+            FlagZ | FlagN | FlagH | FlagC => cpu.read_bit(self) as u16,
+        };
+    }
+
+    pub fn write(&self, cpu: &mut CPU, data: u16) {
+        use Register::*;
+        match self {
+            A | B | C | D | E | H | L => cpu.write_byte(self, get_word_right_byte(data)),
+            AF | BC | DE | HL | SP | PC => cpu.write_word(self, data),
+            FlagZ | FlagN | FlagH | FlagC => {
+                cpu.write_bit(self, get_bit_of_byte(get_word_right_byte(data), 7))
+            }
+        }
+    }
+
+    pub fn is_byte_register(&self) -> bool {
+        use Register::*;
+        return matches!(self, A | B | C | D | E | H | L);
+    }
+    pub fn is_word_register(&self) -> bool {
+        use Register::*;
+        return matches!(self, AF | BC | DE | HL | SP | PC);
+    }
+    pub fn is_bit_register(&self) -> bool {
+        use Register::*;
+        return matches!(self, FlagZ | FlagN | FlagH | FlagC);
+    }
+}
+
 pub struct CPU {
     af: u16,
     bc: u16,
@@ -34,7 +69,7 @@ pub struct CPU {
 }
 
 impl CPU {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             af: 0,
             bc: 0,
@@ -45,7 +80,7 @@ impl CPU {
         }
     }
 
-    fn read_word(&self, register: Register) -> u16 {
+    pub fn read_word(&self, register: &Register) -> u16 {
         use Register::*;
         match register {
             AF => self.af,
@@ -58,7 +93,7 @@ impl CPU {
         }
     }
 
-    fn write_word(&mut self, register: Register, word: u16) {
+    pub fn write_word(&mut self, register: &Register, word: u16) {
         use Register::*;
         match register {
             AF => self.af = word,
@@ -71,7 +106,7 @@ impl CPU {
         }
     }
 
-    fn read_byte(&self, register: Register) -> u8 {
+    pub fn read_byte(&self, register: &Register) -> u8 {
         use Register::*;
         match register {
             A => get_word_left_byte(self.af),
@@ -84,8 +119,7 @@ impl CPU {
             _ => panic!("Cannot read byte with register {:?}", register),
         }
     }
-
-    fn write_byte(&mut self, register: Register, byte: u8) {
+    pub fn write_byte(&mut self, register: &Register, byte: u8) {
         use Register::*;
         match register {
             A => self.af = set_word_left_byte(self.af, byte),
@@ -99,18 +133,18 @@ impl CPU {
         }
     }
 
-    fn read_flag(&self, register: Register) -> bool {
+    pub fn read_bit(&self, register: &Register) -> bool {
         use Register::*;
         match register {
             FlagZ => get_bit_of_byte(get_word_right_byte(self.af), 0),
             FlagN => get_bit_of_byte(get_word_right_byte(self.af), 1),
             FlagH => get_bit_of_byte(get_word_right_byte(self.af), 2),
             FlagC => get_bit_of_byte(get_word_right_byte(self.af), 3),
-            _ => panic!("Cannot read flag with register {:?}", register),
+            _ => panic!("Cannot read bit with register {:?}", register),
         }
     }
 
-    fn write_flag(&mut self, register: Register, bit: bool) {
+    pub fn write_bit(&mut self, register: &Register, bit: bool) {
         use Register::*;
         match register {
             FlagZ => {
@@ -137,7 +171,7 @@ impl CPU {
                     set_bit_of_byte(get_word_right_byte(self.af), 3, bit),
                 )
             }
-            _ => panic!("Cannot write flag with register {:?}", register),
+            _ => panic!("Cannot write bit with register {:?}", register),
         }
     }
 }
