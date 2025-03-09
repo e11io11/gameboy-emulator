@@ -9,9 +9,9 @@ pub struct MemoryMap {
 }
 
 impl MemoryMap {
-    pub fn new(size: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            data: vec![0; size],
+            data: vec![0; 65536],
         }
     }
 

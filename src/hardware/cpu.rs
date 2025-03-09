@@ -59,6 +59,7 @@ impl Register {
     }
 }
 
+#[derive(Debug)]
 pub struct CPU {
     af: u16,
     bc: u16,
