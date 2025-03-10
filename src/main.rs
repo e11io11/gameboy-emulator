@@ -4,6 +4,7 @@ pub mod utils;
 mod vue;
 
 use hardware::cpu::CPU;
+use hardware::cpu::Register;
 use hardware::memory::MemoryMap;
 use interpreter::disassembler;
 use interpreter::disassembler::Operation;
@@ -13,19 +14,22 @@ use eframe::egui;
 pub struct EmulatorApp {
     mem_map: MemoryMap,
     cpu: CPU,
-    head: usize,
     step_flag: bool,
 }
 
 impl EmulatorApp {
-    fn step(&mut self, operation: Operation, offset: usize) {
+    fn step(&mut self, operation: Operation) {
         println!("{:?}", operation);
         let _ = interpreter::execute(&mut self.mem_map, &mut self.cpu, &operation);
-        self.head += offset;
+        self.cpu
+            .incr_word(&Register::PC, operation.get_size() as u16);
     }
 
-    fn next_operation(&mut self) -> (Operation, usize) {
-        let next_bytes = self.mem_map.read_bytes(self.head, 3).unwrap();
+    fn next_operation(&mut self) -> Operation {
+        let next_bytes = self
+            .mem_map
+            .read_bytes(self.cpu.read_word(&Register::PC) as usize, 3)
+            .unwrap();
         return disassembler::get_operation(&next_bytes).unwrap();
     }
 }
@@ -33,11 +37,11 @@ impl EmulatorApp {
 impl eframe::App for EmulatorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.step_flag = false;
-        let (operation, offset) = self.next_operation();
+        let operation = self.next_operation();
         vue::debug::show(ctx, _frame, self, &operation);
         ctx.request_repaint();
         if self.step_flag {
-            self.step(operation, offset);
+            self.step(operation);
         }
     }
 }
@@ -55,9 +59,8 @@ fn main() -> eframe::Result<()> {
     println!("Full program:\n{:?}\n", program);
     let mut mem_map = MemoryMap::new();
     let cpu = CPU::new();
-    let head = 0;
 
-    mem_map.write_bytes(head, input.to_vec()).unwrap();
+    mem_map.write_bytes(0, input.to_vec()).unwrap();
 
     let options = eframe::NativeOptions::default();
     eframe::run_native(
@@ -67,7 +70,6 @@ fn main() -> eframe::Result<()> {
             Ok(Box::new(EmulatorApp {
                 mem_map,
                 cpu,
-                head,
                 step_flag: false,
             }))
         }),

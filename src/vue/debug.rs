@@ -16,7 +16,6 @@ pub fn show(
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("CPU State");
         ui.label(format!("Registers: {:X?}", app.cpu));
-        ui.label(format!("Memory Head: {}", app.head));
         ui.label(format!("Next operation: {:?}", operation));
 
         if ui.button("Step").clicked() {

@@ -176,28 +176,28 @@ impl CPU {
         }
     }
 
-    pub fn incr_word(&mut self, register: &Register) {
+    pub fn incr_word(&mut self, register: &Register, n: u16) {
         use Register::*;
         match register {
-            AF => self.af = self.af.wrapping_add(1),
-            BC => self.bc = self.bc.wrapping_add(1),
-            DE => self.de = self.de.wrapping_add(1),
-            HL => self.hl = self.hl.wrapping_add(1),
-            SP => self.sp = self.sp.wrapping_add(1),
-            PC => self.pc = self.pc.wrapping_add(1),
+            AF => self.af = self.af.wrapping_add(n),
+            BC => self.bc = self.bc.wrapping_add(n),
+            DE => self.de = self.de.wrapping_add(n),
+            HL => self.hl = self.hl.wrapping_add(n),
+            SP => self.sp = self.sp.wrapping_add(n),
+            PC => self.pc = self.pc.wrapping_add(n),
             _ => panic!("Cannot increase word with register {:?}", register),
         }
     }
 
-    pub fn decr_word(&mut self, register: &Register) {
+    pub fn decr_word(&mut self, register: &Register, n: u16) {
         use Register::*;
         match register {
-            AF => self.af = self.af.wrapping_sub(1),
-            BC => self.bc = self.bc.wrapping_sub(1),
-            DE => self.de = self.de.wrapping_sub(1),
-            HL => self.hl = self.hl.wrapping_sub(1),
-            SP => self.sp = self.sp.wrapping_sub(1),
-            PC => self.pc = self.pc.wrapping_sub(1),
+            AF => self.af = self.af.wrapping_sub(n),
+            BC => self.bc = self.bc.wrapping_sub(n),
+            DE => self.de = self.de.wrapping_sub(n),
+            HL => self.hl = self.hl.wrapping_sub(n),
+            SP => self.sp = self.sp.wrapping_sub(n),
+            PC => self.pc = self.pc.wrapping_sub(n),
             _ => panic!("Cannot decrease word with register {:?}", register),
         }
     }

@@ -19,11 +19,11 @@ pub fn execute(
     use Operation::*;
     //use Register::*;
     match operation {
-        LdR16Imm16(dst, src) => cpu.write_word(&dst.clone().into(), *src),
-        LdR16memA(_) => execute_ld_r16mem_a(mem_map, cpu, operation)?,
-        LdAR16mem(_) => execute_ld_a_r16mem(mem_map, cpu, operation)?,
-        LdAddrImm16Sp(_) => execute_ld_addrimm16_sp(mem_map, cpu, operation)?,
-        LdR8Imm8(_, _) => execute_ld_r8_imm8(mem_map, cpu, operation)?,
+        LdR16Imm16(..) => execute_ld_r16_imm16(mem_map, cpu, operation)?,
+        LdR16memA(..) => execute_ld_r16mem_a(mem_map, cpu, operation)?,
+        LdAR16mem(..) => execute_ld_a_r16mem(mem_map, cpu, operation)?,
+        LdAddrImm16Sp(..) => execute_ld_addrimm16_sp(mem_map, cpu, operation)?,
+        LdR8Imm8(..) => execute_ld_r8_imm8(mem_map, cpu, operation)?,
         _ => todo!(),
     }
     return Ok(());
@@ -32,10 +32,22 @@ pub fn execute(
 fn handle_r16mem_incr_or_decr(cpu: &mut CPU, r16mem: &R16mem) {
     use R16mem::*;
     match r16mem {
-        IncrHL => cpu.incr_word(&Register::HL),
-        DecrHL=> cpu.decr_word(&Register::HL),
+        IncrHL => cpu.incr_word(&Register::HL, 1),
+        DecrHL => cpu.decr_word(&Register::HL, 1),
         _ => (),
     }
+}
+
+fn execute_ld_r16_imm16(
+    _mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    operation: &Operation,
+) -> Result<(), ExecutionError> {
+    assert!(matches!(operation, Operation::LdR16Imm16(..)));
+    if let Operation::LdR16Imm16(dst, src) = operation {
+        cpu.write_word(&dst.clone().into(), *src);
+    }
+    return Ok(());
 }
 
 fn execute_ld_r16mem_a(
