@@ -1,8 +1,6 @@
 pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
-use crate::utils::DataSize;
-use disassembler::Operand;
 use disassembler::Operation;
 
 #[derive(Debug)]
@@ -11,153 +9,74 @@ pub enum ExecutionError {
     MemoryOutOfBoundsError(usize),
 }
 
-use ExecutionError::*;
-
 pub fn execute(
     mem_map: &mut MemoryMap,
     cpu: &mut CPU,
     operation: &Operation,
 ) -> Result<(), ExecutionError> {
+    use Operation::*;
+    //use Register::*;
     match operation {
-        Operation::LD(dest, src) => execute_ld(mem_map, cpu, operation, &dest, &src)?,
+        LdR16Imm16(dst, src) => cpu.write_word(&dst.clone().into(), *src),
+        LdR16memA(_) => execute_ld_r16mem_a(mem_map, cpu, operation)?,
+        LdAR16mem(_) => execute_ld_a_r16mem(mem_map, cpu, operation)?,
+        LdAddrImm16Sp(_) => execute_ld_addrimm16_sp(mem_map, cpu, operation)?,
+        LdR8Imm8(_, _) => execute_ld_r8_imm8(mem_map, cpu, operation)?,
         _ => todo!(),
     }
     return Ok(());
 }
 
-pub fn execute_ld(
+fn execute_ld_r16mem_a(
     mem_map: &mut MemoryMap,
     cpu: &mut CPU,
-    current_operation: &Operation,
-    dest: &Operand,
-    src: &Operand,
+    operation: &Operation,
 ) -> Result<(), ExecutionError> {
-    use Register::HL;
-    let data_size = ld_get_data_size(current_operation, dest, src)?;
-    let src_value = match src {
-        Operand::Register(r) => r.read(cpu),
-        Operand::Address(op) => ld_read_address(mem_map, cpu, current_operation, &**op, data_size)?,
-        Operand::Decr(r) if matches!(r, HL) => {
-            let value = r.read(cpu);
-            r.write(cpu, value - 1);
-            value
-        }
-        Operand::Incr(r) if matches!(r, HL) => {
-            let value = r.read(cpu);
-            r.write(cpu, value + 1);
-            value
-        }
-        Operand::Decr(_) | Operand::Incr(_) => {
-            return Err(IllegalOperationError(
-                current_operation.clone(),
-                String::from("LD Incr/Decr should be used with register HL"),
-            ));
-        }
-        Operand::Byte(value) => value.clone() as u16,
-        Operand::Word(value) => value.clone(),
-        Operand::Not(_) => {
-            return Err(IllegalOperationError(
-                current_operation.clone(),
-                String::from("LD with bit size operand"),
-            ));
-        }
-    };
-    match dest {
-        Operand::Register(r) => r.write(cpu, src_value),
-        _ => todo!(),
+    assert!(matches!(operation, Operation::LdR16memA(_)));
+    if let Operation::LdR16memA(dst) = operation {
+        mem_map.write_byte(
+            cpu.read_word(&dst.clone().into()) as usize,
+            cpu.read_byte(&Register::A),
+        )?;
     }
     return Ok(());
 }
 
-fn ld_read_address(
+fn execute_ld_a_r16mem(
     mem_map: &mut MemoryMap,
     cpu: &mut CPU,
-    current_operation: &Operation,
-    operand: &Operand,
-    data_size: DataSize,
-) -> Result<u16, ExecutionError> {
-    use DataSize::*;
-    let address = ld_eval_address(cpu, current_operation, operand)?;
-    return Ok(match data_size {
-        BYTE => mem_map.read_byte(address as usize)? as u16,
-        WORD => mem_map.read_word(address as usize)?,
-        BIT => {
-            return Err(IllegalOperationError(
-                current_operation.clone(),
-                String::from("Cannot read bit from address"),
-            ));
-        }
-    });
+    operation: &Operation,
+) -> Result<(), ExecutionError> {
+    assert!(matches!(operation, Operation::LdAR16mem(_)));
+    if let Operation::LdAR16mem(src) = operation {
+        cpu.write_byte(
+            &Register::A,
+            mem_map.read_byte(cpu.read_word(&src.clone().into()) as usize)?,
+        );
+    }
+    return Ok(());
 }
 
-fn ld_eval_address(
+fn execute_ld_addrimm16_sp(
+    mem_map: &mut MemoryMap,
     cpu: &mut CPU,
-    current_operation: &Operation,
-    operand: &Operand,
-) -> Result<u16, ExecutionError> {
-    use Register::HL;
-    let address = match operand {
-        Operand::Register(r) if r.is_word_register() => r.read(cpu),
-        Operand::Decr(r) if matches!(r, HL) => {
-            let value = r.read(cpu);
-            r.write(cpu, value - 1);
-            value
-        }
-        Operand::Incr(r) if matches!(r, HL) => {
-            let value = r.read(cpu);
-            r.write(cpu, value + 1);
-            value
-        }
-        Operand::Decr(_) | Operand::Incr(_) => {
-            return Err(IllegalOperationError(
-                current_operation.clone(),
-                String::from("LD Incr/Decr should be used with register HL"),
-            ));
-        }
-        Operand::Word(value) => value.clone(),
-        _ => {
-            return Err(IllegalOperationError(
-                current_operation.clone(),
-                String::from("LD Address should be of word size"),
-            ));
-        }
-    };
-    Ok(address)
+    operation: &Operation,
+) -> Result<(), ExecutionError> {
+    assert!(matches!(operation, Operation::LdAddrImm16Sp(_)));
+    if let Operation::LdAddrImm16Sp(dst) = operation {
+        mem_map.write_word(*dst as usize, cpu.read_word(&Register::SP))?;
+    }
+    return Ok(());
 }
 
-fn ld_get_data_size(
-    current_operation: &Operation,
-    dest: &Operand,
-    src: &Operand,
-) -> Result<DataSize, ExecutionError> {
-    use DataSize::*;
-    let op1_size = dest.get_data_size();
-    let op2_size = src.get_data_size();
-    if op1_size.is_none() && op2_size.is_none() {
-        return Err(IllegalOperationError(
-            current_operation.clone(),
-            String::from("LD from address to address"),
-        ));
+fn execute_ld_r8_imm8(
+    _mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    operation: &Operation,
+) -> Result<(), ExecutionError> {
+    assert!(matches!(operation, Operation::LdR8Imm8(_, _)));
+    if let Operation::LdR8Imm8(dst, src) = operation {
+        cpu.write_byte(&dst.clone().into(), *src);
     }
-    if (op1_size.is_some() && op1_size.clone().unwrap() == BIT)
-        || (op2_size.is_some() && op2_size.clone().unwrap() == BIT)
-    {
-        return Err(IllegalOperationError(
-            current_operation.clone(),
-            String::from("LD with bit size operand"),
-        ));
-    }
-    if op1_size.is_none() {
-        return Ok(op2_size.unwrap());
-    }
-    if op2_size.is_none() {
-        return Ok(op1_size.unwrap());
-    }
-    if op1_size != op2_size {
-        return Err(IllegalOperationError(
-            current_operation.clone(),
-            String::from("Mismatch data size on LD operators"),
-        ));
-    }
-    return Ok(op1_size.unwrap());
+    return Ok(());
 }
