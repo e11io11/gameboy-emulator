@@ -2,6 +2,8 @@ pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
 use disassembler::Operation;
+use disassembler::R8;
+use disassembler::R16mem;
 
 #[derive(Debug)]
 pub enum ExecutionError {
@@ -27,6 +29,15 @@ pub fn execute(
     return Ok(());
 }
 
+fn handle_r16mem_incr_or_decr(cpu: &mut CPU, r16mem: &R16mem) {
+    use R16mem::*;
+    match r16mem {
+        IncrHL => cpu.incr_word(&Register::HL),
+        DecrHL=> cpu.decr_word(&Register::HL),
+        _ => (),
+    }
+}
+
 fn execute_ld_r16mem_a(
     mem_map: &mut MemoryMap,
     cpu: &mut CPU,
@@ -38,6 +49,7 @@ fn execute_ld_r16mem_a(
             cpu.read_word(&dst.clone().into()) as usize,
             cpu.read_byte(&Register::A),
         )?;
+        handle_r16mem_incr_or_decr(cpu, dst);
     }
     return Ok(());
 }
@@ -53,6 +65,7 @@ fn execute_ld_a_r16mem(
             &Register::A,
             mem_map.read_byte(cpu.read_word(&src.clone().into()) as usize)?,
         );
+        handle_r16mem_incr_or_decr(cpu, src);
     }
     return Ok(());
 }
@@ -70,13 +83,17 @@ fn execute_ld_addrimm16_sp(
 }
 
 fn execute_ld_r8_imm8(
-    _mem_map: &mut MemoryMap,
+    mem_map: &mut MemoryMap,
     cpu: &mut CPU,
     operation: &Operation,
 ) -> Result<(), ExecutionError> {
     assert!(matches!(operation, Operation::LdR8Imm8(_, _)));
+    use R8::*;
     if let Operation::LdR8Imm8(dst, src) = operation {
-        cpu.write_byte(&dst.clone().into(), *src);
+        match dst {
+            AddrHL => mem_map.write_byte(cpu.read_word(&Register::HL) as usize, *src)?,
+            _ => cpu.write_byte(&dst.clone().into(), *src),
+        }
     }
     return Ok(());
 }

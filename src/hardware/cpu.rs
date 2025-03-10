@@ -175,4 +175,30 @@ impl CPU {
             _ => panic!("Cannot write bit with register {:?}", register),
         }
     }
+
+    pub fn incr_word(&mut self, register: &Register) {
+        use Register::*;
+        match register {
+            AF => self.af = self.af.wrapping_add(1),
+            BC => self.bc = self.bc.wrapping_add(1),
+            DE => self.de = self.de.wrapping_add(1),
+            HL => self.hl = self.hl.wrapping_add(1),
+            SP => self.sp = self.sp.wrapping_add(1),
+            PC => self.pc = self.pc.wrapping_add(1),
+            _ => panic!("Cannot increase word with register {:?}", register),
+        }
+    }
+
+    pub fn decr_word(&mut self, register: &Register) {
+        use Register::*;
+        match register {
+            AF => self.af = self.af.wrapping_sub(1),
+            BC => self.bc = self.bc.wrapping_sub(1),
+            DE => self.de = self.de.wrapping_sub(1),
+            HL => self.hl = self.hl.wrapping_sub(1),
+            SP => self.sp = self.sp.wrapping_sub(1),
+            PC => self.pc = self.pc.wrapping_sub(1),
+            _ => panic!("Cannot decrease word with register {:?}", register),
+        }
+    }
 }

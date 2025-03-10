@@ -18,7 +18,6 @@ pub enum Operation {
     LdAR16mem(R16mem),
     LdAddrImm16Sp(u16),
     LdR8Imm8(R8, u8),
-    //LD(LDOperand, LDOperand),
     JR(Operand),
     JRC(Operand, Operand),
     INC(Operand),
@@ -179,7 +178,7 @@ pub enum R16mem {
     BC,
     DE,
     IncrHL,
-    DecrSP,
+    DecrHL,
 }
 
 impl From<usize> for R16mem {
@@ -190,7 +189,7 @@ impl From<usize> for R16mem {
             0 => BC,
             1 => DE,
             2 => IncrHL,
-            3 => DecrSP,
+            3 => DecrHL,
             _ => panic!("This should never happen."),
         };
     }
@@ -203,7 +202,7 @@ impl Into<Register> for R16mem {
             BC => Register::BC,
             DE => Register::DE,
             IncrHL => Register::HL,
-            DecrSP => Register::SP,
+            DecrHL => Register::HL,
         };
     }
 }
