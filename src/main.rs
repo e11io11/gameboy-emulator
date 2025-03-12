@@ -20,9 +20,9 @@ pub struct EmulatorApp {
 impl EmulatorApp {
     fn step(&mut self, operation: Operation) {
         println!("{:?}", operation);
-        let _ = interpreter::execute(&mut self.mem_map, &mut self.cpu, &operation);
         self.cpu
             .incr_word(&Register::PC, operation.get_size() as u16);
+        let _ = interpreter::execute(&mut self.mem_map, &mut self.cpu, &operation);
     }
 
     fn next_operation(&mut self) -> Operation {

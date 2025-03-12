@@ -1,5 +1,5 @@
 use crate::hardware::cpu::Register;
-use crate::utils::{DataSize, bytes_to_word_little_endian, get_bits_of_byte};
+use crate::utils::{bytes_to_word_little_endian, get_bits_of_byte};
 
 #[derive(Clone, Debug)]
 pub enum Operation {
@@ -18,56 +18,23 @@ pub enum Operation {
     LdAR16mem(R16mem),
     LdAddrImm16Sp(u16),
     LdR8Imm8(R8, u8),
-    JR(Operand),
-    JRC(Operand, Operand),
-    INC(Operand),
-    DEC(Operand),
-    ADD(Operand, Operand),
+    JrImm8(u8),
+    JrCondImm8(Cond, u8),
+    IncR8(R8),
+    IncR16(R16),
+    DecR8(R8),
+    DecR16(R16),
 }
 
 impl Operation {
     pub fn get_size(&self) -> usize {
         use Operation::*;
         return match self {
-            NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | INC(..) | DEC(..)
-            | LdR16memA(..) | LdAR16mem(..) => 1,
-            JR(..) | JRC(..) | LdR8Imm8(..) => 2,
+            NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | IncR8(..)
+            | IncR16(..) | DecR8(..) | DecR16(..) | LdR16memA(..) | LdAR16mem(..) => 1,
+            LdR8Imm8(..) | JrImm8(..) | JrCondImm8(..) => 2,
             LdR16Imm16(..) | LdAddrImm16Sp(..) => 3,
-            _ => todo!(),
         };
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Operand {
-    Address(Box<Operand>),
-    Register(Register),
-    Incr(Register),
-    Decr(Register),
-    Not(Register),
-    Byte(u8),
-    Word(u16),
-}
-
-impl Operand {
-    pub fn get_data_size(&self) -> Option<DataSize> {
-        use DataSize::*;
-        match self {
-            Operand::Register(r) => {
-                if r.is_byte_register() {
-                    return Some(BYTE);
-                }
-                if r.is_word_register() {
-                    return Some(WORD);
-                } else {
-                    return Some(BIT);
-                }
-            }
-            Operand::Decr(_) | Operand::Incr(_) | Operand::Word(_) => return Some(WORD),
-            Operand::Not(_) => return Some(BIT),
-            Operand::Byte(_) => return Some(BYTE),
-            Operand::Address(_) => return None,
-        }
     }
 }
 
@@ -123,23 +90,6 @@ impl Into<Register> for R8 {
     }
 }
 
-/// Must be called with i < 8
-fn get_r8(i: u8) -> Operand {
-    assert!(i < 8);
-    use Register::*;
-    match i {
-        0 => return Operand::Register(B),
-        1 => return Operand::Register(C),
-        2 => return Operand::Register(D),
-        3 => return Operand::Register(E),
-        4 => return Operand::Register(H),
-        5 => return Operand::Register(L),
-        6 => return Operand::Address(Box::new(Operand::Register(HL))),
-        7 => return Operand::Register(A),
-        _ => panic!("This should never happen."),
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum R16 {
     BC,
@@ -171,18 +121,6 @@ impl Into<Register> for R16 {
             HL => Register::HL,
             SP => Register::SP,
         };
-    }
-}
-/// Must be called with i < 4
-fn get_r16(i: u8) -> Operand {
-    use Register::*;
-    assert!(i < 4);
-    match i {
-        0 => return Operand::Register(BC),
-        1 => return Operand::Register(DE),
-        2 => return Operand::Register(HL),
-        3 => return Operand::Register(SP),
-        _ => panic!("This should never happen."),
     }
 }
 
@@ -217,19 +155,6 @@ impl Into<Register> for R16mem {
             IncrHL => Register::HL,
             DecrHL => Register::HL,
         };
-    }
-}
-
-/// Must be called with i < 4
-fn get_cond(i: u8) -> Operand {
-    use Register::*;
-    assert!(i < 4);
-    match i {
-        0 => return Operand::Not(FlagZ),
-        1 => return Operand::Register(FlagZ),
-        2 => return Operand::Not(FlagC),
-        3 => return Operand::Register(FlagC),
-        _ => panic!("This should never happen."),
     }
 }
 
@@ -277,7 +202,6 @@ fn block_0(bytes: &[u8]) -> Result<Operation, DisassemblyError> {
     // Instructions starting bith bits 00
     assert!(!bytes.is_empty());
     use Operation::*;
-    use Register::*;
     let current = bytes[0];
     match current {
         0b00000000 => return Ok(NOP),
@@ -321,28 +245,28 @@ fn block_0(bytes: &[u8]) -> Result<Operation, DisassemblyError> {
         let dst = bytes_to_word_little_endian(bytes[1], bytes[2]);
         return Ok(LdAddrImm16Sp(dst));
     }
-    if apply_mask(current, 0b00110000) == 0b00110011 {
-        // inc r16
-        return Ok(INC(get_r16(get_bits_of_byte(current, 2, 4))));
-    }
-    if apply_mask(current, 0b00110000) == 0b00111011 {
-        // dec r16
-        return Ok(DEC(get_r16(get_bits_of_byte(current, 2, 4))));
-    }
-    if apply_mask(current, 0b00110000) == 0b00111001 {
-        // add hl, r16
-        let op1 = Operand::Register(HL);
-        let op2 = get_r16(get_bits_of_byte(current, 2, 4));
-        return Ok(ADD(op1, op2));
-    }
-    if apply_mask(current, 0b00111000) == 0b00111100 {
-        // inc r8
-        return Ok(INC(get_r8(get_bits_of_byte(current, 2, 5))));
-    }
-    if apply_mask(current, 0b00111000) == 0b00111101 {
-        // dec r8
-        return Ok(DEC(get_r8(get_bits_of_byte(current, 2, 5))));
-    }
+    //if apply_mask(current, 0b00110000) == 0b00110011 {
+    //    // inc r16
+    //    return Ok(INC(get_r16(get_bits_of_byte(current, 2, 4))));
+    //}
+    //if apply_mask(current, 0b00110000) == 0b00111011 {
+    //    // dec r16
+    //    return Ok(DEC(get_r16(get_bits_of_byte(current, 2, 4))));
+    //}
+    //if apply_mask(current, 0b00110000) == 0b00111001 {
+    //    // add hl, r16
+    //    let op1 = Operand::Register(HL);
+    //    let op2 = get_r16(get_bits_of_byte(current, 2, 4));
+    //    return Ok(ADD(op1, op2));
+    //}
+    //if apply_mask(current, 0b00111000) == 0b00111100 {
+    //    // inc r8
+    //    return Ok(INC(get_r8(get_bits_of_byte(current, 2, 5))));
+    //}
+    //if apply_mask(current, 0b00111000) == 0b00111101 {
+    //    // dec r8
+    //    return Ok(DEC(get_r8(get_bits_of_byte(current, 2, 5))));
+    //}
     if apply_mask(current, 0b00111000) == 0b00111110 {
         // ld r8, imm8
         let dst = R8::from(get_bits_of_byte(current, 2, 5) as usize);
@@ -351,14 +275,14 @@ fn block_0(bytes: &[u8]) -> Result<Operation, DisassemblyError> {
     }
     if current == 0b00011000 {
         // jr imm8
-        let dst = Operand::Byte(bytes[1]);
-        return Ok(JR(dst));
+        let dst = bytes[1];
+        return Ok(JrImm8(dst));
     }
     if apply_mask(current, 0b00011000) == 0b00111000 {
         // jr cond, imm8
-        let cond = get_cond(get_bits_of_byte(current, 3, 5));
-        let dst = Operand::Byte(bytes[1]);
-        return Ok(JRC(cond, dst));
+        let cond = Cond::from(get_bits_of_byte(current, 3, 5) as usize);
+        let dst = bytes[1];
+        return Ok(JrCondImm8(cond, dst));
     }
 
     return Err(DisassemblyError::UnrecognisedOperation(current));
