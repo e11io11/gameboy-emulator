@@ -176,19 +176,19 @@ impl CPU {
         }
     }
 
-    pub fn incr_word(&mut self, register: &Register, n: u16) {
+    pub fn add_word(&mut self, register: &Register, n: u16) {
         self.write_word(register, self.read_word(register).wrapping_add(n));
     }
 
-    pub fn decr_word(&mut self, register: &Register, n: u16) {
+    pub fn sub_word(&mut self, register: &Register, n: u16) {
         self.write_word(register, self.read_word(register).wrapping_sub(n));
     }
 
-    pub fn incr_byte(&mut self, register: &Register, n: u8) {
+    pub fn add_byte(&mut self, register: &Register, n: u8) {
         self.write_byte(register, self.read_byte(register).wrapping_add(n));
     }
 
-    pub fn decr_byte(&mut self, register: &Register, n: u8) {
+    pub fn sub_byte(&mut self, register: &Register, n: u8) {
         self.write_byte(register, self.read_byte(register).wrapping_sub(n));
     }
 }

@@ -7,7 +7,7 @@ use hardware::cpu::CPU;
 use hardware::cpu::Register;
 use hardware::memory::MemoryMap;
 use interpreter::disassembler;
-use interpreter::disassembler::Operation;
+use interpreter::disassembler::Instruction;
 
 use eframe::egui;
 
@@ -18,30 +18,30 @@ pub struct EmulatorApp {
 }
 
 impl EmulatorApp {
-    fn step(&mut self, operation: Operation) {
-        println!("{:?}", operation);
+    fn step(&mut self, instruction: Instruction) {
+        println!("{:?}", instruction);
         self.cpu
-            .incr_word(&Register::PC, operation.get_size() as u16);
-        let _ = interpreter::execute(&mut self.mem_map, &mut self.cpu, &operation);
+            .add_word(&Register::PC, instruction.get_size() as u16);
+        let _ = interpreter::execute(&mut self.mem_map, &mut self.cpu, &instruction);
     }
 
-    fn next_operation(&mut self) -> Operation {
+    fn next_instruction(&mut self) -> Instruction {
         let next_bytes = self
             .mem_map
             .read_bytes(self.cpu.read_word(&Register::PC) as usize, 3)
             .unwrap();
-        return disassembler::get_operation(&next_bytes).unwrap();
+        return disassembler::get_instruction(&next_bytes).unwrap();
     }
 }
 
 impl eframe::App for EmulatorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.step_flag = false;
-        let operation = self.next_operation();
-        vue::debug::show(ctx, _frame, self, &operation);
+        let instruction = self.next_instruction();
+        vue::debug::show(ctx, _frame, self, &instruction);
         ctx.request_repaint();
         if self.step_flag {
-            self.step(operation);
+            self.step(instruction);
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::hardware::cpu::Register;
 use crate::utils::{bytes_to_word_little_endian, get_bits_of_byte};
 
 #[derive(Clone, Debug)]
-pub enum Operation {
+pub enum Instruction {
     NOP,
     RLCA,
     RRCA,
@@ -26,9 +26,9 @@ pub enum Operation {
     DecR16(R16),
 }
 
-impl Operation {
+impl Instruction {
     pub fn get_size(&self) -> usize {
-        use Operation::*;
+        use Instruction::*;
         return match self {
             NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | IncR8(..)
             | IncR16(..) | DecR8(..) | DecR16(..) | LdR16memA(..) | LdAR16mem(..) => 1,
@@ -41,7 +41,7 @@ impl Operation {
 #[derive(Debug)]
 pub enum DisassemblyError {
     MissingOperand(u8),
-    UnrecognisedOperation(u8),
+    UnrecognisedInstruction(u8),
 }
 
 #[derive(Clone, Debug)]
@@ -198,10 +198,10 @@ fn apply_mask_equal(input: u8, mask: u8) -> bool {
     return apply_mask(input, mask) == mask;
 }
 
-fn block_0(bytes: &[u8]) -> Result<Operation, DisassemblyError> {
+fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     // Instructions starting bith bits 00
     assert!(!bytes.is_empty());
-    use Operation::*;
+    use Instruction::*;
     let current = bytes[0];
     match current {
         0b00000000 => return Ok(NOP),
@@ -285,25 +285,25 @@ fn block_0(bytes: &[u8]) -> Result<Operation, DisassemblyError> {
         return Ok(JrCondImm8(cond, dst));
     }
 
-    return Err(DisassemblyError::UnrecognisedOperation(current));
+    return Err(DisassemblyError::UnrecognisedInstruction(current));
 }
 
-pub fn get_operation(bytes: &[u8]) -> Result<Operation, DisassemblyError> {
+pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     assert!(!bytes.is_empty());
     let current = bytes[0];
     if apply_mask_equal(current, 0b00111111) {
         return block_0(bytes);
     }
-    return Err(DisassemblyError::UnrecognisedOperation(current));
+    return Err(DisassemblyError::UnrecognisedInstruction(current));
 }
 
-pub fn disassemble_program(bytes: &[u8]) -> Result<Vec<Operation>, DisassemblyError> {
-    let mut operations = vec![];
+pub fn disassemble_program(bytes: &[u8]) -> Result<Vec<Instruction>, DisassemblyError> {
+    let mut instructions = vec![];
     let mut head = 0;
     while head < bytes.len() {
-        let operation = get_operation(&bytes[head..bytes.len()])?;
-        head += operation.get_size();
-        operations.push(operation);
+        let instruction = get_instruction(&bytes[head..bytes.len()])?;
+        head += instruction.get_size();
+        instructions.push(instruction);
     }
-    return Ok(operations);
+    return Ok(instructions);
 }

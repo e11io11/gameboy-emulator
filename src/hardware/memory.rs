@@ -67,12 +67,12 @@ impl MemoryMap {
         return Ok(());
     }
 
-    pub fn incr_byte(&mut self, address: usize, n: u8) -> Result<(), ExecutionError> {
+    pub fn add_byte(&mut self, address: usize, n: u8) -> Result<(), ExecutionError> {
         self.write_byte(address, self.read_byte(address)?.wrapping_add(n))?;
         return Ok(());
     }
 
-    pub fn decr_byte(&mut self, address: usize, n: u8) -> Result<(), ExecutionError> {
+    pub fn sub_byte(&mut self, address: usize, n: u8) -> Result<(), ExecutionError> {
         self.write_byte(address, self.read_byte(address)?.wrapping_sub(n))?;
         return Ok(());
     }

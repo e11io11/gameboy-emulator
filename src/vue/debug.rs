@@ -1,12 +1,12 @@
 use crate::EmulatorApp;
 use crate::hardware::memory::MemoryMap;
-use crate::interpreter::disassembler::Operation;
+use crate::interpreter::disassembler::Instruction;
 
 pub fn show(
     ctx: &egui::Context,
     _frame: &mut eframe::Frame,
     app: &mut EmulatorApp,
-    operation: &Operation,
+    instruction: &Instruction,
 ) {
     egui::SidePanel::left("memory_panel")
         .resizable(true) // Allow resizing the panel
@@ -16,7 +16,7 @@ pub fn show(
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("CPU State");
         ui.label(format!("Registers: {:X?}", app.cpu));
-        ui.label(format!("Next operation: {:?}", operation));
+        ui.label(format!("Next instruction: {:?}", instruction));
 
         if ui.button("Step").clicked() {
             app.step_flag = true;
