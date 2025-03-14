@@ -62,6 +62,17 @@ pub fn set_bit_of_byte(byte: u8, i: usize, bit: bool) -> u8 {
     return byte & !(1 << i);
 }
 
+/// Position is read from right to left, e.g. 0b76543210
+pub fn check_overflow_word(op1: u16, op2: u16, result: u16, position: usize) -> bool {
+    assert!(position < 16);
+    (op1 ^ op2 ^ result) & (1 << position) != 0
+}
+
+pub fn check_overflow_byte(op1: u16, op2: u16, result: u16, position: usize) -> bool {
+    assert!(position < 8);
+    (op1 ^ op2 ^ result) & (1 << position) != 0
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum DataSize {
     BYTE = 8,

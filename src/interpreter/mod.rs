@@ -1,7 +1,7 @@
 pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
-use crate::utils::{get_bit_of_byte, set_bit_of_byte};
+use crate::utils::{check_overflow_word, get_bit_of_byte, set_bit_of_byte};
 use disassembler::Cond;
 use disassembler::Instruction;
 use disassembler::R8;
@@ -59,8 +59,8 @@ fn execute_add_hl_r16(cpu: &mut CPU, r16: &R16) -> u32 {
     cpu.add_word(&HL, added);
     let new_value = cpu.read_word(&HL);
     cpu.write_bit(&FlagN, false);
-    let bit_11_overflow = (new_value - prev_value) > (prev_value % 2047);
-    let bit_15_overflow = new_value <= prev_value && added != 0;
+    let bit_11_overflow = check_overflow_word(prev_value, added, new_value, 11);
+    let bit_15_overflow = check_overflow_word(prev_value, added, new_value, 15);
     if bit_11_overflow {
         cpu.write_bit(&FlagH, true);
     }

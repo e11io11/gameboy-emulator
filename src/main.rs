@@ -19,7 +19,7 @@ pub struct EmulatorApp {
 
 impl EmulatorApp {
     fn step(&mut self, instruction: Instruction) {
-        println!("{:?}", instruction);
+        println!("{:X?}", instruction);
         self.cpu
             .add_word(&Register::PC, instruction.get_size() as u16);
         interpreter::execute(&mut self.mem_map, &mut self.cpu, &instruction).unwrap();
@@ -56,7 +56,7 @@ fn main() -> eframe::Result<()> {
         0b00101010, 0b00110110, 0b11111111,
     ];
     let program = disassembler::disassemble_program(&input).unwrap();
-    println!("Full program:\n{:?}\n", program);
+    println!("Full program:\n{:X?}\n", program);
     let mut mem_map = MemoryMap::new();
     let cpu = CPU::new();
 

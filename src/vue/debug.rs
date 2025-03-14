@@ -16,7 +16,7 @@ pub fn show(
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("CPU State");
         ui.label(format!("Registers: {:X?}", app.cpu));
-        ui.label(format!("Next instruction: {:?}", instruction));
+        ui.label(format!("Next instruction: {:X?}", instruction));
 
         if ui.button("Step").clicked() {
             app.step_flag = true;
