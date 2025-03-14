@@ -1,6 +1,7 @@
 pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
+use crate::utils::get_bit_of_byte;
 use disassembler::Cond;
 use disassembler::Instruction;
 use disassembler::R8;
@@ -35,9 +36,9 @@ pub fn execute(
         LdAR16mem(..) => execute_ld_a_r16mem(mem_map, cpu, instruction)?,
         LdAddrImm16Sp(..) => execute_ld_addrimm16_sp(mem_map, cpu, instruction)?,
         LdR8Imm8(..) => execute_ld_r8_imm8(mem_map, cpu, instruction)?,
-        IncR8(r8) => execute_inc_dec_r8(mem_map, cpu, r8, true)?,
+        IncR8(r8) => execute_inc_r8(mem_map, cpu, r8)?,
         IncR16(r16) => execute_inc_dec_r16(mem_map, cpu, r16, true)?,
-        DecR8(r8) => execute_inc_dec_r8(mem_map, cpu, r8, false)?,
+        DecR8(r8) => execute_inc_r8(mem_map, cpu, r8)?,
         DecR16(r16) => execute_inc_dec_r16(mem_map, cpu, r16, false)?,
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
@@ -66,30 +67,70 @@ fn execute_jr(cpu: &mut CPU, offset: i8) -> u16 {
     return 2;
 }
 
-fn execute_inc_dec_r8(
-    mem_map: &mut MemoryMap,
-    cpu: &mut CPU,
-    r8: &R8,
-    inc: bool,
-) -> Result<u16, ExecutionError> {
-    return Ok(match r8 {
-        R8::AddrHL if inc => {
-            mem_map.add_byte(cpu.read_byte(&Register::HL) as usize, 1)?;
-            3
-        }
+fn execute_inc_r8(mem_map: &mut MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u16, ExecutionError> {
+    let cycles = match r8 {
         R8::AddrHL => {
-            mem_map.sub_byte(cpu.read_byte(&Register::HL) as usize, 1)?;
+            let address = cpu.read_byte(&Register::HL) as usize;
+            let prev_value = mem_map.read_byte(address)?;
+            mem_map.add_byte(address, 1)?;
+            let new_value = mem_map.read_byte(address)?;
+            if new_value == 0 {
+                cpu.write_bit(&Register::FlagZ, true)
+            }
+            if get_bit_of_byte(prev_value, 4) && !get_bit_of_byte(new_value, 4) {
+                cpu.write_bit(&Register::FlagH, true)
+            }
             3
-        }
-        _ if inc => {
-            cpu.add_byte(&r8.clone().into(), 1);
-            1
         }
         _ => {
-            cpu.sub_byte(&r8.clone().into(), 1);
+            let register = &r8.clone().into();
+            let prev_value = cpu.read_byte(register);
+            cpu.add_byte(register, 1);
+            let new_value = cpu.read_byte(register);
+            if new_value == 0 {
+                cpu.write_bit(&Register::FlagZ, true)
+            }
+            if get_bit_of_byte(prev_value, 4) && !get_bit_of_byte(new_value, 4) {
+                cpu.write_bit(&Register::FlagH, true)
+            }
             1
         }
-    });
+    };
+    cpu.write_bit(&Register::FlagN, false);
+    return Ok(cycles);
+}
+
+fn execute_dec_r8(mem_map: &mut MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u16, ExecutionError> {
+    let cycles = match r8 {
+        R8::AddrHL => {
+            let address = cpu.read_byte(&Register::HL) as usize;
+            let prev_value = mem_map.read_byte(address)?;
+            mem_map.sub_byte(address, 1)?;
+            let new_value = mem_map.read_byte(address)?;
+            if new_value == 0 {
+                cpu.write_bit(&Register::FlagZ, true)
+            }
+            if get_bit_of_byte(prev_value, 4) && !get_bit_of_byte(new_value, 4) {
+                cpu.write_bit(&Register::FlagH, true)
+            }
+            3
+        }
+        _ => {
+            let register = &r8.clone().into();
+            let prev_value = cpu.read_byte(register);
+            cpu.add_byte(register, 1);
+            let new_value = cpu.read_byte(register);
+            if new_value == 0 {
+                cpu.write_bit(&Register::FlagZ, true)
+            }
+            if get_bit_of_byte(prev_value, 3) && !get_bit_of_byte(new_value, 3) {
+                cpu.write_bit(&Register::FlagH, true)
+            }
+            1
+        }
+    };
+    cpu.write_bit(&Register::FlagN, true);
+    return Ok(cycles);
 }
 
 fn execute_inc_dec_r16(
