@@ -22,7 +22,7 @@ impl EmulatorApp {
         println!("{:?}", instruction);
         self.cpu
             .add_word(&Register::PC, instruction.get_size() as u16);
-        let _ = interpreter::execute(&mut self.mem_map, &mut self.cpu, &instruction);
+        interpreter::execute(&mut self.mem_map, &mut self.cpu, &instruction).unwrap();
     }
 
     fn next_instruction(&mut self) -> Instruction {
@@ -48,10 +48,10 @@ impl eframe::App for EmulatorApp {
 
 fn main() -> eframe::Result<()> {
     let input = [
-        //0b00001000, 0b00110111, 0b00010001, 0b00010010, 0b00011001, 0b00011111, 0b00110001,
-        //0b11000001, 0b11111001, 0b00011001, 0b00110010, 0b00110001, 0b11000001, 0b11111001,
-        //0b00111010, 0b00110111, 0b00010001, 0b00110001, 0b11011101, 0b00011001, 0b00011111,
-        //0b00110001, 0b11000001, 0b11111001,
+        0b00001000, 0b00110111, 0b00010001, 0b00010010, 0b00011001, 0b00011111, 0b00110001,
+        0b11000001, 0b11111001, 0b00011001, 0b00110010, 0b00110001, 0b11000001, 0b11111001,
+        0b00111010, 0b00110111, 0b00010001, 0b00110001, 0b11011101, 0b00011001, 0b00011111,
+        0b00110001, 0b11000001, 0b11111001,
         0b00000001, 0b11111111, 0b10000000, 0b00001010, 0b00000110, 0b11111111, 0b00110010,
         0b00101010, 0b00110110, 0b11111111,
     ];

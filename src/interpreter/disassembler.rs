@@ -3,6 +3,7 @@ use crate::utils::{bytes_to_word_little_endian, get_bits_of_byte};
 
 #[derive(Clone, Debug)]
 pub enum Instruction {
+    Unkown(u8),
     NOP,
     RLCA,
     RRCA,
@@ -24,14 +25,16 @@ pub enum Instruction {
     IncR16(R16),
     DecR8(R8),
     DecR16(R16),
+    AddHlR16(R16),
 }
 
 impl Instruction {
     pub fn get_size(&self) -> usize {
         use Instruction::*;
         return match self {
-            NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | IncR8(..)
-            | IncR16(..) | DecR8(..) | DecR16(..) | LdR16memA(..) | LdAR16mem(..) => 1,
+            Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP
+            | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..) | AddHlR16(..) | LdR16memA(..)
+            | LdAR16mem(..) => 1,
             LdR8Imm8(..) | JrImm8(..) | JrCondImm8(..) => 2,
             LdR16Imm16(..) | LdAddrImm16Sp(..) => 3,
         };
@@ -41,7 +44,7 @@ impl Instruction {
 #[derive(Debug)]
 pub enum DisassemblyError {
     MissingOperand(u8),
-    UnrecognisedInstruction(u8),
+    //UnrecognisedInstruction(u8),
 }
 
 #[derive(Clone, Debug)]
@@ -245,28 +248,27 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
         let dst = bytes_to_word_little_endian(bytes[1], bytes[2]);
         return Ok(LdAddrImm16Sp(dst));
     }
-    //if apply_mask(current, 0b00110000) == 0b00110011 {
-    //    // inc r16
-    //    return Ok(INC(get_r16(get_bits_of_byte(current, 2, 4))));
-    //}
-    //if apply_mask(current, 0b00110000) == 0b00111011 {
-    //    // dec r16
-    //    return Ok(DEC(get_r16(get_bits_of_byte(current, 2, 4))));
-    //}
-    //if apply_mask(current, 0b00110000) == 0b00111001 {
-    //    // add hl, r16
-    //    let op1 = Operand::Register(HL);
-    //    let op2 = get_r16(get_bits_of_byte(current, 2, 4));
-    //    return Ok(ADD(op1, op2));
-    //}
-    //if apply_mask(current, 0b00111000) == 0b00111100 {
-    //    // inc r8
-    //    return Ok(INC(get_r8(get_bits_of_byte(current, 2, 5))));
-    //}
-    //if apply_mask(current, 0b00111000) == 0b00111101 {
-    //    // dec r8
-    //    return Ok(DEC(get_r8(get_bits_of_byte(current, 2, 5))));
-    //}
+    if apply_mask(current, 0b00110000) == 0b00110011 {
+        // inc r16
+        return Ok(IncR16(R16::from(get_bits_of_byte(current, 2, 4) as usize)));
+    }
+    if apply_mask(current, 0b00110000) == 0b00111011 {
+        // dec r16
+        return Ok(DecR16(R16::from(get_bits_of_byte(current, 2, 4) as usize)));
+    }
+    if apply_mask(current, 0b00110000) == 0b00111001 {
+        // add hl, r16
+        let r16 = R16::from(get_bits_of_byte(current, 2, 4) as usize);
+        return Ok(AddHlR16(r16));
+    }
+    if apply_mask(current, 0b00111000) == 0b00111100 {
+        // inc r8
+        return Ok(IncR8(R8::from(get_bits_of_byte(current, 2, 5) as usize)));
+    }
+    if apply_mask(current, 0b00111000) == 0b00111101 {
+        // dec r8
+        return Ok(DecR8(R8::from(get_bits_of_byte(current, 2, 5) as usize)));
+    }
     if apply_mask(current, 0b00111000) == 0b00111110 {
         // ld r8, imm8
         let dst = R8::from(get_bits_of_byte(current, 2, 5) as usize);
@@ -285,16 +287,19 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
         return Ok(JrCondImm8(cond, dst));
     }
 
-    return Err(DisassemblyError::UnrecognisedInstruction(current));
+    //return Err(DisassemblyError::UnrecognisedInstruction(current));
+    return Ok(Unkown(current));
 }
 
 pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
+    use Instruction::Unkown;
     assert!(!bytes.is_empty());
     let current = bytes[0];
     if apply_mask_equal(current, 0b00111111) {
         return block_0(bytes);
     }
-    return Err(DisassemblyError::UnrecognisedInstruction(current));
+    //return Err(DisassemblyError::UnrecognisedInstruction(current));
+    return Ok(Unkown(current));
 }
 
 pub fn disassemble_program(bytes: &[u8]) -> Result<Vec<Instruction>, DisassemblyError> {
