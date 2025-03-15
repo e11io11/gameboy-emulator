@@ -28,6 +28,14 @@ pub enum Instruction {
     DecR8(R8),
     DecR16(R16),
     AddHlR16(R16),
+    AddAR8(R8),
+    AdcAR8(R8),
+    SubAR8(R8),
+    SbcAR8(R8),
+    AndAR8(R8),
+    XorAR8(R8),
+    OrAR8(R8),
+    CpAR8(R8),
 }
 
 impl Instruction {
@@ -35,8 +43,9 @@ impl Instruction {
         use Instruction::*;
         return match self {
             Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | HALT
-            | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..) | AddHlR16(..) | LdR16memA(..)
-            | LdAR16mem(..) | LdR8R8(..) => 1,
+            | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..) | XorAR8(..)
+            | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..)
+            | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) => 1,
             LdR8Imm8(..) | JrImm8(..) | JrCondImm8(..) => 2,
             LdR16Imm16(..) | LdAddrImm16Sp(..) => 3,
         };
@@ -299,6 +308,7 @@ fn block_1(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     use Instruction::*;
     let current = bytes[0];
     if current == 0b01110110 {
+        // halt
         return Ok(HALT);
     }
     let dst = R8::from(get_bits_of_byte(current, 2, 5) as usize);
@@ -306,7 +316,49 @@ fn block_1(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     if matches!(dst, R8::AddrHL) && matches!(src, R8::AddrHL) {
         return Ok(Unkown(current));
     }
+    // ld r8, r8
     return Ok(LdR8R8(dst, src));
+}
+
+fn block_2(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
+    // Instructions starting bith bits 10
+    assert!(!bytes.is_empty());
+    use Instruction::*;
+    let current = bytes[0];
+    let src = R8::from(get_bits_of_byte(current, 5, 8) as usize);
+    if apply_mask(current, 0b00000111) == 0b10000111 {
+        // add a, r8
+        return Ok(AddAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10001111 {
+        // adc a, r8
+        return Ok(AdcAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10010111 {
+        // sub a, r8
+        return Ok(SubAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10011111 {
+        // sbc a, r8
+        return Ok(SbcAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10100111 {
+        // and a, r8
+        return Ok(AndAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10101111 {
+        // xor a, r8
+        return Ok(XorAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10110111 {
+        // or a, r8
+        return Ok(OrAR8(src));
+    }
+    if apply_mask(current, 0b00000111) == 0b10111111 {
+        // cp a, r8
+        return Ok(CpAR8(src));
+    }
+    return Ok(Unkown(current));
 }
 
 pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
@@ -318,6 +370,9 @@ pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     }
     if apply_mask(current, 0b00111111) == 0b01111111 {
         return block_1(bytes);
+    }
+    if apply_mask(current, 0b00111111) == 0b10111111 {
+        return block_2(bytes);
     }
     //return Err(DisassemblyError::UnrecognisedInstruction(current));
     return Ok(Unkown(current));

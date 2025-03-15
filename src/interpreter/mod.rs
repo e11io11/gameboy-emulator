@@ -1,7 +1,10 @@
 pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
-use crate::utils::{check_overflow_word, get_bit_of_byte, set_bit_of_byte, variant_eq};
+use crate::utils::{
+    borrow_occurred_byte, borrow_occurred_word, get_bit_of_byte, overflow_occured_byte,
+    overflow_occured_word, set_bit_of_byte,
+};
 use disassembler::Cond;
 use disassembler::Instruction;
 use disassembler::R8;
@@ -49,9 +52,231 @@ pub fn execute(
         DecR8(r8) => execute_dec_r8(mem_map, cpu, r8)?,
         DecR16(r16) => execute_inc_dec_r16(mem_map, cpu, r16, false)?,
         AddHlR16(r16) => execute_add_hl_r16(cpu, r16),
+        AddAR8(r8) => execute_add_a_r8(mem_map, cpu, r8)?,
+        AdcAR8(r8) => execute_adc_a_r8(mem_map, cpu, r8)?,
+        SubAR8(r8) => execute_sub_a_r8(mem_map, cpu, r8)?,
+        SbcAR8(r8) => execute_sbc_a_r8(mem_map, cpu, r8)?,
+        AndAR8(r8) => execute_and_a_r8(mem_map, cpu, r8)?,
+        XorAR8(r8) => execute_xor_a_r8(mem_map, cpu, r8)?,
+        OrAR8(r8) => execute_or_a_r8(mem_map, cpu, r8)?,
+        CpAR8(r8) => execute_cp_a_r8(mem_map, cpu, r8)?,
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
     });
+}
+
+fn execute_cp_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    use Register::*;
+    let prev_value = cpu.read_byte(&A);
+    let new_value = prev_value.wrapping_sub(byte);
+    let bit_4_borrow = borrow_occurred_byte(prev_value, byte, 4);
+    let borrow = byte > prev_value;
+    if new_value == 0 {
+        cpu.write_bit(&FlagZ, true);
+    }
+    if bit_4_borrow {
+        cpu.write_bit(&FlagH, true);
+    }
+    if borrow {
+        cpu.write_bit(&FlagC, true);
+    }
+    cpu.write_bit(&FlagN, true);
+    return 2;
+}
+
+fn execute_cp_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    if matches!(r8, R8::AddrHL) {
+        execute_cp_a_imm8(
+            cpu,
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        );
+        return Ok(2);
+    } else {
+        execute_cp_a_imm8(cpu, cpu.read_byte(&r8.clone().into()));
+        return Ok(1);
+    }
+}
+
+fn execute_or_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    use Register::*;
+    cpu.write_byte(&A, cpu.read_byte(&A) | byte);
+    if cpu.read_byte(&A) == 0 {
+        cpu.write_bit(&FlagZ, true);
+    }
+
+    cpu.write_bit(&FlagN, false);
+    cpu.write_bit(&FlagH, false);
+    cpu.write_bit(&FlagC, false);
+    return 2;
+}
+
+fn execute_or_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    if matches!(r8, R8::AddrHL) {
+        execute_or_a_imm8(
+            cpu,
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        );
+        return Ok(2);
+    } else {
+        execute_or_a_imm8(cpu, cpu.read_byte(&r8.clone().into()));
+        return Ok(1);
+    }
+}
+
+fn execute_xor_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    use Register::*;
+    cpu.write_byte(&A, cpu.read_byte(&A) ^ byte);
+    if cpu.read_byte(&A) == 0 {
+        cpu.write_bit(&FlagZ, true);
+    }
+
+    cpu.write_bit(&FlagN, false);
+    cpu.write_bit(&FlagH, false);
+    cpu.write_bit(&FlagC, false);
+    return 2;
+}
+
+fn execute_xor_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    if matches!(r8, R8::AddrHL) {
+        execute_xor_a_imm8(
+            cpu,
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        );
+        return Ok(2);
+    } else {
+        execute_xor_a_imm8(cpu, cpu.read_byte(&r8.clone().into()));
+        return Ok(1);
+    }
+}
+
+fn execute_and_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    use Register::*;
+    cpu.write_byte(&A, cpu.read_byte(&A) & byte);
+    if cpu.read_byte(&A) == 0 {
+        cpu.write_bit(&FlagZ, true);
+    }
+
+    cpu.write_bit(&FlagN, false);
+    cpu.write_bit(&FlagH, true);
+    cpu.write_bit(&FlagC, false);
+    return 2;
+}
+
+fn execute_and_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    if matches!(r8, R8::AddrHL) {
+        execute_and_a_imm8(
+            cpu,
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        );
+        return Ok(2);
+    } else {
+        execute_and_a_imm8(cpu, cpu.read_byte(&r8.clone().into()));
+        return Ok(1);
+    }
+}
+
+fn execute_sbc_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    let sub_c = match cpu.read_bit(&Register::FlagC) {
+        true => 1,
+        false => 0,
+    };
+    if matches!(r8, R8::AddrHL) {
+        execute_sub_a_imm8(
+            cpu,
+            mem_map
+                .read_byte(cpu.read_word(&Register::HL) as usize)?
+                .wrapping_sub(sub_c),
+        );
+        return Ok(2);
+    } else {
+        execute_sub_a_imm8(cpu, cpu.read_byte(&r8.clone().into()).wrapping_sub(sub_c));
+        return Ok(1);
+    }
+}
+
+fn execute_sub_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    use Register::*;
+    let prev_value = cpu.read_byte(&A);
+    cpu.sub_byte(&A, byte);
+    let new_value = cpu.read_byte(&A);
+    let bit_4_borrow = borrow_occurred_byte(prev_value, byte, 4);
+    let borrow = byte > prev_value;
+    if new_value == 0 {
+        cpu.write_bit(&FlagZ, true);
+    }
+    if bit_4_borrow {
+        cpu.write_bit(&FlagH, true);
+    }
+    if borrow {
+        cpu.write_bit(&FlagC, true);
+    }
+    cpu.write_bit(&FlagN, true);
+    return 2;
+}
+
+fn execute_sub_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    if matches!(r8, R8::AddrHL) {
+        execute_sub_a_imm8(
+            cpu,
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        );
+        return Ok(2);
+    } else {
+        execute_sub_a_imm8(cpu, cpu.read_byte(&r8.clone().into()));
+        return Ok(1);
+    }
+}
+
+fn execute_adc_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    let add_c = match cpu.read_bit(&Register::FlagC) {
+        true => 1,
+        false => 0,
+    };
+    if matches!(r8, R8::AddrHL) {
+        execute_add_a_imm8(
+            cpu,
+            mem_map
+                .read_byte(cpu.read_word(&Register::HL) as usize)?
+                .wrapping_add(add_c),
+        );
+        return Ok(2);
+    } else {
+        execute_add_a_imm8(cpu, cpu.read_byte(&r8.clone().into()).wrapping_add(add_c));
+        return Ok(1);
+    }
+}
+
+fn execute_add_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    use Register::*;
+    let prev_value = cpu.read_byte(&A);
+    cpu.add_byte(&A, byte);
+    let new_value = cpu.read_byte(&A);
+    let bit_3_overflow = overflow_occured_byte(prev_value, byte, new_value, 3);
+    let bit_7_overflow = overflow_occured_byte(prev_value, byte, new_value, 7);
+    if new_value == 0 {
+        cpu.write_bit(&FlagZ, true);
+    }
+    if bit_3_overflow {
+        cpu.write_bit(&FlagH, true);
+    }
+    if bit_7_overflow {
+        cpu.write_bit(&FlagC, true);
+    }
+    cpu.write_bit(&FlagN, false);
+    return 2;
+}
+
+fn execute_add_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
+    if matches!(r8, R8::AddrHL) {
+        execute_add_a_imm8(
+            cpu,
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        );
+        return Ok(2);
+    } else {
+        execute_add_a_imm8(cpu, cpu.read_byte(&r8.clone().into()));
+        return Ok(1);
+    }
 }
 
 fn execute_ld_r8_r8(
@@ -90,8 +315,8 @@ fn execute_add_hl_r16(cpu: &mut CPU, r16: &R16) -> u32 {
     cpu.add_word(&HL, added);
     let new_value = cpu.read_word(&HL);
     cpu.write_bit(&FlagN, false);
-    let bit_11_overflow = check_overflow_word(prev_value, added, new_value, 11);
-    let bit_15_overflow = check_overflow_word(prev_value, added, new_value, 15);
+    let bit_11_overflow = overflow_occured_word(prev_value, added, new_value, 11);
+    let bit_15_overflow = overflow_occured_word(prev_value, added, new_value, 15);
     if bit_11_overflow {
         cpu.write_bit(&FlagH, true);
     }

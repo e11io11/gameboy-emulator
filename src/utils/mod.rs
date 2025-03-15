@@ -63,14 +63,27 @@ pub fn set_bit_of_byte(byte: u8, i: usize, bit: bool) -> u8 {
 }
 
 /// Position is read from right to left, e.g. 0b76543210
-pub fn check_overflow_word(op1: u16, op2: u16, result: u16, position: usize) -> bool {
+pub fn overflow_occured_word(op1: u16, op2: u16, result: u16, position: usize) -> bool {
     assert!(position < 16);
     (op1 ^ op2 ^ result) & (1 << position) != 0
 }
 
-pub fn check_overflow_byte(op1: u16, op2: u16, result: u16, position: usize) -> bool {
+/// Position is read from right to left, e.g. 0b76543210
+pub fn overflow_occured_byte(op1: u8, op2: u8, result: u8, position: usize) -> bool {
     assert!(position < 8);
     (op1 ^ op2 ^ result) & (1 << position) != 0
+}
+
+/// Position is read from right to left, e.g. 0b76543210
+pub fn borrow_occurred_word(op1: u16, op2: u16, position: usize) -> bool {
+    assert!(position < 16);
+    ((!(op1) & op2) & (1 << position)) != 0
+}
+
+/// Position is read from right to left, e.g. 0b76543210
+pub fn borrow_occurred_byte(op1: u8, op2: u8, position: usize) -> bool {
+    assert!(position < 8);
+    ((!(op1) & op2) & (1 << position)) != 0
 }
 
 #[derive(Debug, PartialEq, Clone)]
