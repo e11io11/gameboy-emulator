@@ -14,11 +14,13 @@ pub enum Instruction {
     SCF,
     CCF,
     STOP,
+    HALT,
     LdR16Imm16(R16, u16),
     LdR16memA(R16mem),
     LdAR16mem(R16mem),
     LdAddrImm16Sp(u16),
     LdR8Imm8(R8, u8),
+    LdR8R8(R8, R8),
     JrImm8(u8),
     JrCondImm8(Cond, u8),
     IncR8(R8),
@@ -32,9 +34,9 @@ impl Instruction {
     pub fn get_size(&self) -> usize {
         use Instruction::*;
         return match self {
-            Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP
+            Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | HALT
             | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..) | AddHlR16(..) | LdR16memA(..)
-            | LdAR16mem(..) => 1,
+            | LdAR16mem(..) | LdR8R8(..) => 1,
             LdR8Imm8(..) | JrImm8(..) | JrCondImm8(..) => 2,
             LdR16Imm16(..) | LdAddrImm16Sp(..) => 3,
         };
@@ -291,12 +293,31 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     return Ok(Unkown(current));
 }
 
+fn block_1(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
+    // Instructions starting bith bits 01
+    assert!(!bytes.is_empty());
+    use Instruction::*;
+    let current = bytes[0];
+    if current == 0b01110110 {
+        return Ok(HALT);
+    }
+    let dst = R8::from(get_bits_of_byte(current, 2, 5) as usize);
+    let src = R8::from(get_bits_of_byte(current, 5, 8) as usize);
+    if matches!(dst, R8::AddrHL) && matches!(src, R8::AddrHL) {
+        return Ok(Unkown(current));
+    }
+    return Ok(LdR8R8(dst, src));
+}
+
 pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     use Instruction::Unkown;
     assert!(!bytes.is_empty());
     let current = bytes[0];
     if apply_mask_equal(current, 0b00111111) {
         return block_0(bytes);
+    }
+    if apply_mask(current, 0b00111111) == 0b01111111 {
+        return block_1(bytes);
     }
     //return Err(DisassemblyError::UnrecognisedInstruction(current));
     return Ok(Unkown(current));

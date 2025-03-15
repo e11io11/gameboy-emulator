@@ -1,7 +1,7 @@
 pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
-use crate::utils::{check_overflow_word, get_bit_of_byte, set_bit_of_byte};
+use crate::utils::{check_overflow_word, get_bit_of_byte, set_bit_of_byte, variant_eq};
 use disassembler::Cond;
 use disassembler::Instruction;
 use disassembler::R8;
@@ -37,11 +37,13 @@ pub fn execute(
         SCF => execute_scf(cpu),
         CCF => execute_ccf(cpu),
         STOP => execute_stop(),
+        HALT => todo!(),
         LdR16Imm16(..) => execute_ld_r16_imm16(mem_map, cpu, instruction)?,
         LdR16memA(..) => execute_ld_r16mem_a(mem_map, cpu, instruction)?,
         LdAR16mem(..) => execute_ld_a_r16mem(mem_map, cpu, instruction)?,
         LdAddrImm16Sp(..) => execute_ld_addrimm16_sp(mem_map, cpu, instruction)?,
         LdR8Imm8(..) => execute_ld_r8_imm8(mem_map, cpu, instruction)?,
+        LdR8R8(dst, src) => execute_ld_r8_r8(mem_map, cpu, dst, src)?,
         IncR8(r8) => execute_inc_r8(mem_map, cpu, r8)?,
         IncR16(r16) => execute_inc_dec_r16(mem_map, cpu, r16, true)?,
         DecR8(r8) => execute_dec_r8(mem_map, cpu, r8)?,
@@ -50,6 +52,35 @@ pub fn execute(
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
     });
+}
+
+fn execute_ld_r8_r8(
+    mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    dst: &R8,
+    src: &R8,
+) -> Result<u32, ExecutionError> {
+    use R8::*;
+    if matches!(dst, AddrHL) && matches!(src, AddrHL) {
+        return Err(ExecutionError::IllegalInstructionError(
+            Instruction::LdR8R8(dst.clone(), src.clone()),
+            "ld [hl], [hl] is illegal".into(),
+        ));
+    }
+    if matches!(src, AddrHL) {
+        cpu.write_byte(
+            &dst.clone().into(),
+            mem_map.read_byte(cpu.read_word(&Register::HL) as usize)?,
+        )
+    } else if matches!(dst, AddrHL) {
+        mem_map.write_byte(
+            cpu.read_word(&Register::HL) as usize,
+            cpu.read_byte(&dst.clone().into()),
+        )?;
+    } else {
+        cpu.write_byte(&dst.clone().into(), cpu.read_byte(&src.clone().into()));
+    }
+    return Ok(1);
 }
 
 fn execute_add_hl_r16(cpu: &mut CPU, r16: &R16) -> u32 {
