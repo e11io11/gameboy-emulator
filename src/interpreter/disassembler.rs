@@ -36,6 +36,14 @@ pub enum Instruction {
     XorAR8(R8),
     OrAR8(R8),
     CpAR8(R8),
+    AddAImm8(u8),
+    AdcAImm8(u8),
+    SubAImm8(u8),
+    SbcAImm8(u8),
+    AndAImm8(u8),
+    XorAImm8(u8),
+    OrAImm8(u8),
+    CpAImm8(u8),
 }
 
 impl Instruction {
@@ -46,7 +54,9 @@ impl Instruction {
             | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..) | XorAR8(..)
             | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..)
             | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) => 1,
-            LdR8Imm8(..) | JrImm8(..) | JrCondImm8(..) => 2,
+            AddAImm8(..) | AdcAImm8(..) | SubAImm8(..) | SbcAImm8(..) | AndAImm8(..)
+            | XorAImm8(..) | OrAImm8(..) | CpAImm8(..) | LdR8Imm8(..) | JrImm8(..)
+            | JrCondImm8(..) => 2,
             LdR16Imm16(..) | LdAddrImm16Sp(..) => 3,
         };
     }
@@ -55,6 +65,7 @@ impl Instruction {
 #[derive(Debug)]
 pub enum DisassemblyError {
     MissingOperand(u8),
+    EOF,
     //UnrecognisedInstruction(u8),
 }
 
@@ -212,11 +223,20 @@ fn apply_mask_equal(input: u8, mask: u8) -> bool {
     return apply_mask(input, mask) == mask;
 }
 
+fn get_byte(bytes: &[u8], index: usize) -> Result<u8, DisassemblyError> {
+    if bytes.is_empty() {
+        return Err(DisassemblyError::EOF);
+    }
+    return bytes
+        .get(index)
+        .copied()
+        .ok_or(DisassemblyError::MissingOperand(bytes[0]));
+}
+
 fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     // Instructions starting bith bits 00
-    assert!(!bytes.is_empty());
     use Instruction::*;
-    let current = bytes[0];
+    let current = get_byte(bytes, 0)?;
     match current {
         0b00000000 => return Ok(NOP),
         0b00000111 => return Ok(RLCA),
@@ -228,20 +248,15 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
         0b00110111 => return Ok(SCF),
         0b00111111 => return Ok(CCF),
         0b00010000 => {
-            if bytes.len() < 2 {
-                return Err(DisassemblyError::MissingOperand(current));
-            }
+            get_byte(bytes, 1)?;
             return Ok(STOP);
         }
         _ => (),
     }
     if apply_mask(current, 0b00110000) == 0b00110001 {
         // ld r16, imm16
-        if bytes.len() < 3 {
-            return Err(DisassemblyError::MissingOperand(current));
-        }
         let dst = R16::from(get_bits_of_byte(current, 2, 4) as usize);
-        let src = bytes_to_word_little_endian(bytes[1], bytes[2]);
+        let src = bytes_to_word_little_endian(get_byte(bytes, 1)?, get_byte(bytes, 2)?);
         return Ok(LdR16Imm16(dst, src));
     }
     if apply_mask(current, 0b00110000) == 0b00110010 {
@@ -256,7 +271,7 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     }
     if current == 0b00001000 {
         // ld [imm16], sp
-        let dst = bytes_to_word_little_endian(bytes[1], bytes[2]);
+        let dst = bytes_to_word_little_endian(get_byte(bytes, 1)?, get_byte(bytes, 2)?);
         return Ok(LdAddrImm16Sp(dst));
     }
     if apply_mask(current, 0b00110000) == 0b00110011 {
@@ -283,18 +298,18 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     if apply_mask(current, 0b00111000) == 0b00111110 {
         // ld r8, imm8
         let dst = R8::from(get_bits_of_byte(current, 2, 5) as usize);
-        let src = bytes[1];
+        let src = get_byte(bytes, 1)?;
         return Ok(LdR8Imm8(dst, src));
     }
     if current == 0b00011000 {
         // jr imm8
-        let dst = bytes[1];
+        let dst = get_byte(bytes, 1)?;
         return Ok(JrImm8(dst));
     }
     if apply_mask(current, 0b00011000) == 0b00111000 {
         // jr cond, imm8
         let cond = Cond::from(get_bits_of_byte(current, 3, 5) as usize);
-        let dst = bytes[1];
+        let dst = get_byte(bytes, 1)?;
         return Ok(JrCondImm8(cond, dst));
     }
 
@@ -304,9 +319,8 @@ fn block_0(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
 
 fn block_1(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     // Instructions starting bith bits 01
-    assert!(!bytes.is_empty());
     use Instruction::*;
-    let current = bytes[0];
+    let current = get_byte(bytes, 0)?;
     if current == 0b01110110 {
         // halt
         return Ok(HALT);
@@ -322,9 +336,8 @@ fn block_1(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
 
 fn block_2(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     // Instructions starting bith bits 10
-    assert!(!bytes.is_empty());
     use Instruction::*;
-    let current = bytes[0];
+    let current = get_byte(bytes, 0)?;
     let src = R8::from(get_bits_of_byte(current, 5, 8) as usize);
     if apply_mask(current, 0b00000111) == 0b10000111 {
         // add a, r8
@@ -361,10 +374,28 @@ fn block_2(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     return Ok(Unkown(current));
 }
 
+fn block_3(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
+    // Instructions starting bith bits 11
+    use Instruction::*;
+    let current = get_byte(bytes, 0)?;
+    match current {
+        0b11000110 => return Ok(AddAImm8(get_byte(bytes, 1)?)),
+        0b11001110 => return Ok(AdcAImm8(get_byte(bytes, 1)?)),
+        0b11010110 => return Ok(SubAImm8(get_byte(bytes, 1)?)),
+        0b11011110 => return Ok(SbcAImm8(get_byte(bytes, 1)?)),
+        0b11100110 => return Ok(AndAImm8(get_byte(bytes, 1)?)),
+        0b11101110 => return Ok(XorAImm8(get_byte(bytes, 1)?)),
+        0b11110110 => return Ok(OrAImm8(get_byte(bytes, 1)?)),
+        0b11111110 => return Ok(CpAImm8(get_byte(bytes, 1)?)),
+        _ => (),
+    }
+    return Ok(Unkown(current));
+}
+
 pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     use Instruction::Unkown;
     assert!(!bytes.is_empty());
-    let current = bytes[0];
+    let current = get_byte(bytes, 0)?;
     if apply_mask_equal(current, 0b00111111) {
         return block_0(bytes);
     }
@@ -373,6 +404,9 @@ pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     }
     if apply_mask(current, 0b00111111) == 0b10111111 {
         return block_2(bytes);
+    }
+    if apply_mask(current, 0b00111111) == 0b11111111 {
+        return block_3(bytes);
     }
     //return Err(DisassemblyError::UnrecognisedInstruction(current));
     return Ok(Unkown(current));

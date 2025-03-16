@@ -60,6 +60,14 @@ pub fn execute(
         XorAR8(r8) => execute_xor_a_r8(mem_map, cpu, r8)?,
         OrAR8(r8) => execute_or_a_r8(mem_map, cpu, r8)?,
         CpAR8(r8) => execute_cp_a_r8(mem_map, cpu, r8)?,
+        AddAImm8(byte) => execute_add_a_imm8(cpu, *byte),
+        AdcAImm8(byte) => execute_adc_a_imm8(cpu, *byte),
+        SubAImm8(byte) => execute_sub_a_imm8(cpu, *byte),
+        SbcAImm8(byte) => execute_sbc_a_imm8(cpu, *byte),
+        AndAImm8(byte) => execute_and_a_imm8(cpu, *byte),
+        XorAImm8(byte) => execute_xor_a_imm8(cpu, *byte),
+        OrAImm8(byte) => execute_or_a_imm8(cpu, *byte),
+        CpAImm8(byte) => execute_cp_a_imm8(cpu, *byte),
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
     });
@@ -175,6 +183,15 @@ fn execute_and_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, 
     }
 }
 
+fn execute_sbc_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    let sub_c = match cpu.read_bit(&Register::FlagC) {
+        true => 1,
+        false => 0,
+    };
+    execute_sub_a_imm8(cpu, byte.wrapping_sub(sub_c));
+    return 2;
+}
+
 fn execute_sbc_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, ExecutionError> {
     let sub_c = match cpu.read_bit(&Register::FlagC) {
         true => 1,
@@ -244,6 +261,15 @@ fn execute_adc_a_r8(mem_map: &MemoryMap, cpu: &mut CPU, r8: &R8) -> Result<u32, 
         execute_add_a_imm8(cpu, cpu.read_byte(&r8.clone().into()).wrapping_add(add_c));
         return Ok(1);
     }
+}
+
+fn execute_adc_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
+    let add_c = match cpu.read_bit(&Register::FlagC) {
+        true => 1,
+        false => 0,
+    };
+    execute_add_a_imm8(cpu, byte.wrapping_add(add_c));
+    return 2;
 }
 
 fn execute_add_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {
