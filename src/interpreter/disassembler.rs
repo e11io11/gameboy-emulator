@@ -21,8 +21,17 @@ pub enum Instruction {
     LdAddrImm16Sp(u16),
     LdR8Imm8(R8, u8),
     LdR8R8(R8, R8),
+    LdAddrImm16A(u16),
+    LdAAddrImm16(u16),
+    LdhAddrCA,
+    LdhAddrImm8A(u8),
+    LdhAAddrC,
+    LdhAAddrImm8(u8),
     JrImm8(u8),
     JrCondImm8(Cond, u8),
+    Ret,
+    Reti,
+    RetCond(Cond),
     IncR8(R8),
     IncR16(R16),
     DecR8(R8),
@@ -55,12 +64,12 @@ impl Instruction {
             Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | HALT
             | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..) | XorAR8(..)
             | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..)
-            | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) | PopR16stk(..)
-            | PushR16stk(..) => 1,
+            | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) | LdhAddrCA | LdhAAddrC
+            | RetCond(..) | Ret | Reti | PopR16stk(..) | PushR16stk(..) => 1,
             AddAImm8(..) | AdcAImm8(..) | SubAImm8(..) | SbcAImm8(..) | AndAImm8(..)
-            | XorAImm8(..) | OrAImm8(..) | CpAImm8(..) | LdR8Imm8(..) | JrImm8(..)
-            | JrCondImm8(..) => 2,
-            LdR16Imm16(..) | LdAddrImm16Sp(..) => 3,
+            | XorAImm8(..) | OrAImm8(..) | CpAImm8(..) | LdR8Imm8(..) | LdhAAddrImm8(..)
+            | LdhAddrImm8A(..) | JrImm8(..) | JrCondImm8(..) => 2,
+            LdR16Imm16(..) | LdAddrImm16Sp(..) | LdAddrImm16A(..) | LdAAddrImm16(..) => 3,
         };
     }
 }
@@ -424,7 +433,31 @@ fn block_3(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
         0b11101110 => return Ok(XorAImm8(get_byte(bytes, 1)?)),
         0b11110110 => return Ok(OrAImm8(get_byte(bytes, 1)?)),
         0b11111110 => return Ok(CpAImm8(get_byte(bytes, 1)?)),
+        0b11100010 => return Ok(LdhAddrCA),
+        0b11100000 => return Ok(LdhAddrImm8A(get_byte(bytes, 1)?)),
+        0b11101010 => {
+            return Ok(LdAddrImm16A(bytes_to_word_little_endian(
+                get_byte(bytes, 1)?,
+                get_byte(bytes, 2)?,
+            )));
+        }
+        0b11110010 => return Ok(LdhAAddrC),
+        0b11110000 => return Ok(LdhAAddrImm8(get_byte(bytes, 1)?)),
+        0b11111010 => {
+            return Ok(LdAAddrImm16(bytes_to_word_little_endian(
+                get_byte(bytes, 1)?,
+                get_byte(bytes, 2)?,
+            )));
+        }
+        0b11001001 => return Ok(Ret),
+        0b11011001 => return Ok(Reti),
         _ => (),
+    }
+    if apply_mask(current, 0b00011000) == 0b11011000 {
+        // ret cond
+        return Ok(RetCond(
+            Cond::from(get_bits_of_byte(current, 3, 5) as usize),
+        ));
     }
     if apply_mask(current, 0b00110000) == 0b11110001 {
         // pop r16stk

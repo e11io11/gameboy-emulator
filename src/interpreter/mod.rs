@@ -48,6 +48,12 @@ pub fn execute(
         LdAddrImm16Sp(..) => execute_ld_addrimm16_sp(mem_map, cpu, instruction)?,
         LdR8Imm8(..) => execute_ld_r8_imm8(mem_map, cpu, instruction)?,
         LdR8R8(dst, src) => execute_ld_r8_r8(mem_map, cpu, dst, src)?,
+        LdAddrImm16A(word) => execute_ld_addr_imm16_a(mem_map, cpu, *word)?,
+        LdAAddrImm16(word) => execute_ld_a_addr_imm16(mem_map, cpu, *word)?,
+        LdhAddrCA => execute_ldh_addr_c_a(mem_map, cpu)?,
+        LdhAAddrC => execute_ldh_a_addr_c(mem_map, cpu)?,
+        LdhAddrImm8A(byte) => execute_ldh_addr_imm8_a(mem_map, cpu, *byte)?,
+        LdhAAddrImm8(byte) => execute_ldh_a_addr_imm8(mem_map, cpu, *byte)?,
         IncR8(r8) => execute_inc_r8(mem_map, cpu, r8)?,
         IncR16(r16) => execute_inc_dec_r16(mem_map, cpu, r16, true)?,
         DecR8(r8) => execute_dec_r8(mem_map, cpu, r8)?,
@@ -69,11 +75,89 @@ pub fn execute(
         XorAImm8(byte) => execute_xor_a_imm8(cpu, *byte),
         OrAImm8(byte) => execute_or_a_imm8(cpu, *byte),
         CpAImm8(byte) => execute_cp_a_imm8(cpu, *byte),
+        Ret => execute_ret(mem_map, cpu)?,
+        Reti => todo!(),
+        RetCond(cond) => execute_ret_cond(mem_map, cpu, cond)?,
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
         PopR16stk(r16stk) => execute_pop_r16stk(mem_map, cpu, r16stk)?,
         PushR16stk(r16stk) => execute_push_r16stk(mem_map, cpu, r16stk)?,
     });
+}
+
+fn execute_ret(mem_map: &MemoryMap, cpu: &mut CPU) -> Result<u32, ExecutionError> {
+    let value = mem_map.read_word(cpu.read_word(&Register::SP) as usize)?;
+    cpu.write_word(&Register::PC, endianess_conversion(value));
+    cpu.add_word(&Register::SP, 2);
+    return Ok(4);
+}
+
+fn execute_ret_cond(
+    mem_map: &MemoryMap,
+    cpu: &mut CPU,
+    cond: &Cond,
+) -> Result<u32, ExecutionError> {
+    let condition = match cond {
+        Cond::Z | Cond::C => true,
+        Cond::NotZ | Cond::NotC => false,
+    };
+    if cpu.read_bit(&cond.clone().into()) == condition {
+        execute_ret(mem_map, cpu)?;
+        return Ok(5);
+    }
+    return Ok(2);
+}
+
+fn execute_ld_addr_imm16_a(
+    mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    word: u16,
+) -> Result<u32, ExecutionError> {
+    mem_map.write_byte(word as usize, cpu.read_byte(&Register::A))?;
+    return Ok(3);
+}
+
+fn execute_ld_a_addr_imm16(
+    mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    word: u16,
+) -> Result<u32, ExecutionError> {
+    cpu.write_byte(&Register::A, mem_map.read_byte(word as usize)?);
+    return Ok(2);
+}
+
+fn execute_ldh_addr_c_a(mem_map: &mut MemoryMap, cpu: &mut CPU) -> Result<u32, ExecutionError> {
+    mem_map.write_byte(
+        0xFF00 + cpu.read_byte(&Register::C) as usize,
+        cpu.read_byte(&Register::A),
+    )?;
+    return Ok(2);
+}
+
+fn execute_ldh_a_addr_c(mem_map: &mut MemoryMap, cpu: &mut CPU) -> Result<u32, ExecutionError> {
+    cpu.write_byte(
+        &Register::A,
+        mem_map.read_byte(0xFF00 + cpu.read_byte(&Register::C) as usize)?,
+    );
+    return Ok(2);
+}
+
+fn execute_ldh_addr_imm8_a(
+    mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    byte: u8,
+) -> Result<u32, ExecutionError> {
+    mem_map.write_byte(0xFF00 + byte as usize, cpu.read_byte(&Register::A))?;
+    return Ok(3);
+}
+
+fn execute_ldh_a_addr_imm8(
+    mem_map: &mut MemoryMap,
+    cpu: &mut CPU,
+    byte: u8,
+) -> Result<u32, ExecutionError> {
+    cpu.write_byte(&Register::A, mem_map.read_byte(0xFF00 + byte as usize)?);
+    return Ok(3);
 }
 
 fn execute_push_r16stk(
