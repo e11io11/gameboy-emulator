@@ -78,11 +78,35 @@ pub fn execute(
         Ret => execute_ret(mem_map, cpu)?,
         Reti => todo!(),
         RetCond(cond) => execute_ret_cond(mem_map, cpu, cond)?,
+        JpImm16(word) => execute_jp_imm16(cpu, *word),
+        JpCondImm16(cond, word) => execute_jp_cond_imm16(cpu, cond, *word),
+        JpHl => execute_jp_hl(cpu),
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
         PopR16stk(r16stk) => execute_pop_r16stk(mem_map, cpu, r16stk)?,
         PushR16stk(r16stk) => execute_push_r16stk(mem_map, cpu, r16stk)?,
     });
+}
+
+fn execute_jp_imm16(cpu: &mut CPU, word: u16) -> u32 {
+    cpu.write_word(&Register::PC, word);
+    return 4;
+}
+
+fn execute_jp_cond_imm16(cpu: &mut CPU, cond: &Cond, word: u16) -> u32 {
+    let condition = match cond {
+        Cond::Z | Cond::C => true,
+        Cond::NotZ | Cond::NotC => false,
+    };
+    if cpu.read_bit(&cond.clone().into()) == condition {
+        return execute_jp_imm16(cpu, word);
+    }
+    return 3;
+}
+
+fn execute_jp_hl(cpu: &mut CPU) -> u32 {
+    cpu.write_word(&Register::PC, cpu.read_word(&Register::HL));
+    return 1;
 }
 
 fn execute_ret(mem_map: &MemoryMap, cpu: &mut CPU) -> Result<u32, ExecutionError> {

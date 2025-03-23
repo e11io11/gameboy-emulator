@@ -29,6 +29,9 @@ pub enum Instruction {
     LdhAAddrImm8(u8),
     JrImm8(u8),
     JrCondImm8(Cond, u8),
+    JpCondImm16(Cond, u16),
+    JpImm16(u16),
+    JpHl,
     Ret,
     Reti,
     RetCond(Cond),
@@ -65,10 +68,10 @@ impl Instruction {
             | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..) | XorAR8(..)
             | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..)
             | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) | LdhAddrCA | LdhAAddrC
-            | RetCond(..) | Ret | Reti | PopR16stk(..) | PushR16stk(..) => 1,
+            | RetCond(..) | Ret | Reti | JpHl | PopR16stk(..) | PushR16stk(..) => 1,
             AddAImm8(..) | AdcAImm8(..) | SubAImm8(..) | SbcAImm8(..) | AndAImm8(..)
             | XorAImm8(..) | OrAImm8(..) | CpAImm8(..) | LdR8Imm8(..) | LdhAAddrImm8(..)
-            | LdhAddrImm8A(..) | JrImm8(..) | JrCondImm8(..) => 2,
+            | LdhAddrImm8A(..) | JrImm8(..) | JrCondImm8(..) | JpCondImm16(..) | JpImm16(..) => 2,
             LdR16Imm16(..) | LdAddrImm16Sp(..) | LdAddrImm16A(..) | LdAAddrImm16(..) => 3,
         };
     }
@@ -433,6 +436,15 @@ fn block_3(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
         0b11101110 => return Ok(XorAImm8(get_byte(bytes, 1)?)),
         0b11110110 => return Ok(OrAImm8(get_byte(bytes, 1)?)),
         0b11111110 => return Ok(CpAImm8(get_byte(bytes, 1)?)),
+        0b11001001 => return Ok(Ret),
+        0b11011001 => return Ok(Reti),
+        0b11000011 => {
+            return Ok(JpImm16(bytes_to_word_little_endian(
+                get_byte(bytes, 1)?,
+                get_byte(bytes, 2)?,
+            )));
+        }
+        0b11101001 => return Ok(JpHl),
         0b11100010 => return Ok(LdhAddrCA),
         0b11100000 => return Ok(LdhAddrImm8A(get_byte(bytes, 1)?)),
         0b11101010 => {
@@ -449,9 +461,13 @@ fn block_3(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
                 get_byte(bytes, 2)?,
             )));
         }
-        0b11001001 => return Ok(Ret),
-        0b11011001 => return Ok(Reti),
         _ => (),
+    }
+    if apply_mask(current, 0b00011000) == 0b11000010 {
+        // jp cond, imm16
+        let cond = Cond::from(get_bits_of_byte(current, 3, 5) as usize);
+        let dst = bytes_to_word_little_endian(get_byte(bytes, 1)?, get_byte(bytes, 2)?);
+        return Ok(JpCondImm16(cond, dst));
     }
     if apply_mask(current, 0b00011000) == 0b11011000 {
         // ret cond
