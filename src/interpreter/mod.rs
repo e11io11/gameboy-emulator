@@ -619,7 +619,7 @@ fn execute_jr_cond(cpu: &mut CPU, cond: &Cond, offset: u8) -> u32 {
 }
 
 fn execute_jr(cpu: &mut CPU, offset: u8) -> u32 {
-    let signed_offset = offset as i16;
+    let signed_offset = (offset as i8) as i16;
     if signed_offset >= 0 {
         cpu.add_word(&Register::PC, signed_offset.unsigned_abs());
     } else {
