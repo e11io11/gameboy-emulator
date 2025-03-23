@@ -28,8 +28,8 @@ fn show_mem_map(ui: &mut egui::Ui, mem_map: &mut MemoryMap) {
     use egui_extras::{Column, TableBuilder};
     TableBuilder::new(ui)
         .striped(true)
-        .column(Column::auto())
-        .columns(Column::auto(), 16)
+        .column(Column::auto().at_least(20.0))
+        .columns(Column::auto().at_least(20.0), 16)
         .header(20.0, |mut header| {
             header.col(|ui| {
                 ui.centered_and_justified(|ui| ui.heading(""));
