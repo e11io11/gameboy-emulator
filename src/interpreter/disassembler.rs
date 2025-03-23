@@ -15,6 +15,8 @@ pub enum Instruction {
     CCF,
     STOP,
     HALT,
+    DI,
+    EI,
     LdR16Imm16(R16, u16),
     LdR16memA(R16mem),
     LdAR16mem(R16mem),
@@ -65,10 +67,11 @@ impl Instruction {
         use Instruction::*;
         return match self {
             Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | HALT
-            | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..) | XorAR8(..)
-            | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..)
-            | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) | LdhAddrCA | LdhAAddrC
-            | RetCond(..) | Ret | Reti | JpHl | PopR16stk(..) | PushR16stk(..) => 1,
+            | DI | EI | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..)
+            | XorAR8(..) | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..)
+            | DecR16(..) | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..)
+            | LdhAddrCA | LdhAAddrC | RetCond(..) | Ret | Reti | JpHl | PopR16stk(..)
+            | PushR16stk(..) => 1,
             AddAImm8(..) | AdcAImm8(..) | SubAImm8(..) | SbcAImm8(..) | AndAImm8(..)
             | XorAImm8(..) | OrAImm8(..) | CpAImm8(..) | LdR8Imm8(..) | LdhAAddrImm8(..)
             | LdhAddrImm8A(..) | JrImm8(..) | JrCondImm8(..) | JpCondImm16(..) | JpImm16(..) => 2,
@@ -461,6 +464,8 @@ fn block_3(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
                 get_byte(bytes, 2)?,
             )));
         }
+        0b11110011 => return Ok(DI),
+        0b11111011 => return Ok(EI),
         _ => (),
     }
     if apply_mask(current, 0b00011000) == 0b11000010 {

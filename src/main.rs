@@ -23,6 +23,7 @@ impl EmulatorApp {
         self.cpu
             .add_word(&Register::PC, instruction.get_size() as u16);
         interpreter::execute(&mut self.mem_map, &mut self.cpu, &instruction).unwrap();
+        self.cpu.refresh_interupt_flag();
     }
 
     fn next_instruction(&mut self) -> Instruction {

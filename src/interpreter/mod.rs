@@ -42,6 +42,8 @@ pub fn execute(
         CCF => execute_ccf(cpu),
         STOP => execute_stop(),
         HALT => todo!(),
+        DI => execute_di(cpu),
+        EI => execute_ei(cpu),
         LdR16Imm16(..) => execute_ld_r16_imm16(mem_map, cpu, instruction)?,
         LdR16memA(..) => execute_ld_r16mem_a(mem_map, cpu, instruction)?,
         LdAR16mem(..) => execute_ld_a_r16mem(mem_map, cpu, instruction)?,
@@ -86,6 +88,16 @@ pub fn execute(
         PopR16stk(r16stk) => execute_pop_r16stk(mem_map, cpu, r16stk)?,
         PushR16stk(r16stk) => execute_push_r16stk(mem_map, cpu, r16stk)?,
     });
+}
+
+fn execute_di(cpu: &mut CPU) -> u32 {
+    cpu.disable_interupts();
+    return 1;
+}
+
+fn execute_ei(cpu: &mut CPU) -> u32 {
+    cpu.enable_interupts();
+    return 1;
 }
 
 fn execute_jp_imm16(cpu: &mut CPU, word: u16) -> u32 {

@@ -67,6 +67,8 @@ pub struct CPU {
     hl: u16,
     sp: u16,
     pc: u16,
+    ime: bool,
+    ime_delay: Option<u8>,
 }
 
 impl CPU {
@@ -78,6 +80,29 @@ impl CPU {
             hl: 0,
             sp: 0,
             pc: 0x100,
+            ime: false,
+            ime_delay: None,
+        }
+    }
+
+    pub fn enable_interupts(&mut self) {
+        // Interupts are enabled after the next intruction is executed
+        self.ime_delay = Some(2);
+    }
+
+    pub fn disable_interupts(&mut self) {
+        self.ime = false;
+        self.ime_delay = None;
+    }
+
+    pub fn refresh_interupt_flag(&mut self) {
+        match self.ime_delay {
+            Some(0) => {
+                self.ime = true;
+                self.ime_delay = None;
+            }
+            Some(n) => self.ime_delay = Some(n - 1),
+            None => (),
         }
     }
 
