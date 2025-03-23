@@ -2,14 +2,15 @@ pub mod disassembler;
 use crate::hardware::cpu::{CPU, Register};
 use crate::hardware::memory::MemoryMap;
 use crate::utils::{
-    borrow_occurred_byte, borrow_occurred_word, get_bit_of_byte, overflow_occured_byte,
-    overflow_occured_word, set_bit_of_byte,
+    borrow_occurred_byte, borrow_occurred_word, endianess_conversion, get_bit_of_byte,
+    overflow_occured_byte, overflow_occured_word, set_bit_of_byte,
 };
 use disassembler::Cond;
 use disassembler::Instruction;
 use disassembler::R8;
 use disassembler::R16;
 use disassembler::R16mem;
+use disassembler::R16stk;
 
 #[derive(Debug)]
 pub enum ExecutionError {
@@ -70,7 +71,35 @@ pub fn execute(
         CpAImm8(byte) => execute_cp_a_imm8(cpu, *byte),
         JrImm8(offset) => execute_jr(cpu, *offset as i8),
         JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
+        PopR16stk(r16stk) => execute_pop_r16stk(mem_map, cpu, r16stk)?,
+        PushR16stk(r16stk) => execute_push_r16stk(mem_map, cpu, r16stk)?,
     });
+}
+
+fn execute_push_r16stk(
+    mem_map: &MemoryMap,
+    cpu: &mut CPU,
+    r16stk: &R16stk,
+) -> Result<u32, ExecutionError> {
+    use Register::*;
+    let reg = r16stk.clone().into();
+    let value = mem_map.read_word(cpu.read_word(&reg) as usize)?;
+    cpu.write_word(&SP, endianess_conversion(value));
+    cpu.sub_word(&SP, 2);
+    return Ok(3);
+}
+
+fn execute_pop_r16stk(
+    mem_map: &MemoryMap,
+    cpu: &mut CPU,
+    r16stk: &R16stk,
+) -> Result<u32, ExecutionError> {
+    use Register::*;
+    let reg = r16stk.clone().into();
+    let value = mem_map.read_word(cpu.read_word(&SP) as usize)?;
+    cpu.write_word(&reg, endianess_conversion(value));
+    cpu.add_word(&SP, 2);
+    return Ok(3);
 }
 
 fn execute_cp_a_imm8(cpu: &mut CPU, byte: u8) -> u32 {

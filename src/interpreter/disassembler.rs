@@ -44,6 +44,8 @@ pub enum Instruction {
     XorAImm8(u8),
     OrAImm8(u8),
     CpAImm8(u8),
+    PopR16stk(R16stk),
+    PushR16stk(R16stk),
 }
 
 impl Instruction {
@@ -53,7 +55,8 @@ impl Instruction {
             Unkown(..) | NOP | RLCA | RRCA | RLA | RRA | DAA | CPL | SCF | CCF | STOP | HALT
             | AddAR8(..) | AdcAR8(..) | SubAR8(..) | SbcAR8(..) | AndAR8(..) | XorAR8(..)
             | OrAR8(..) | CpAR8(..) | IncR8(..) | IncR16(..) | DecR8(..) | DecR16(..)
-            | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) => 1,
+            | AddHlR16(..) | LdR16memA(..) | LdAR16mem(..) | LdR8R8(..) | PopR16stk(..)
+            | PushR16stk(..) => 1,
             AddAImm8(..) | AdcAImm8(..) | SubAImm8(..) | SbcAImm8(..) | AndAImm8(..)
             | XorAImm8(..) | OrAImm8(..) | CpAImm8(..) | LdR8Imm8(..) | JrImm8(..)
             | JrCondImm8(..) => 2,
@@ -145,6 +148,40 @@ impl Into<Register> for R16 {
             DE => Register::DE,
             HL => Register::HL,
             SP => Register::SP,
+        };
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum R16stk {
+    BC,
+    DE,
+    HL,
+    AF,
+}
+
+impl From<usize> for R16stk {
+    fn from(i: usize) -> R16stk {
+        assert!(i < 4);
+        use R16stk::*;
+        return match i {
+            0 => BC,
+            1 => DE,
+            2 => HL,
+            3 => AF,
+            _ => panic!("This should never happen."),
+        };
+    }
+}
+
+impl Into<Register> for R16stk {
+    fn into(self) -> Register {
+        use R16stk::*;
+        return match self {
+            BC => Register::BC,
+            DE => Register::DE,
+            HL => Register::HL,
+            AF => Register::AF,
         };
     }
 }
@@ -389,6 +426,16 @@ fn block_3(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
         0b11111110 => return Ok(CpAImm8(get_byte(bytes, 1)?)),
         _ => (),
     }
+    if apply_mask(current, 0b00110000) == 0b11110001 {
+        // pop r16stk
+        let op = R16stk::from(get_bits_of_byte(current, 2, 4) as usize);
+        return Ok(PopR16stk(op));
+    }
+    if apply_mask(current, 0b00110000) == 0b11110101 {
+        // push r16stk
+        let op = R16stk::from(get_bits_of_byte(current, 2, 4) as usize);
+        return Ok(PushR16stk(op));
+    }
     return Ok(Unkown(current));
 }
 
@@ -408,7 +455,6 @@ pub fn get_instruction(bytes: &[u8]) -> Result<Instruction, DisassemblyError> {
     if apply_mask(current, 0b00111111) == 0b11111111 {
         return block_3(bytes);
     }
-    //return Err(DisassemblyError::UnrecognisedInstruction(current));
     return Ok(Unkown(current));
 }
 

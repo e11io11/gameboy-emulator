@@ -19,6 +19,10 @@ pub fn word_to_bytes_little_endian(word: u16) -> (u8, u8) {
     return (snd, fst);
 }
 
+pub fn endianess_conversion(word: u16) -> u16 {
+    return (word >> 8) | (word << 8);
+}
+
 pub fn get_word_left_byte(word: u16) -> u8 {
     let (fst, _) = word_to_bytes_big_endian(word);
     return fst;
