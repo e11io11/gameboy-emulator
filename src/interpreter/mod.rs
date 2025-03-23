@@ -83,8 +83,8 @@ pub fn execute(
         JpImm16(word) => execute_jp_imm16(cpu, *word),
         JpCondImm16(cond, word) => execute_jp_cond_imm16(cpu, cond, *word),
         JpHl => execute_jp_hl(cpu),
-        JrImm8(offset) => execute_jr(cpu, *offset as i8),
-        JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset as i8),
+        JrImm8(offset) => execute_jr(cpu, *offset),
+        JrCondImm8(cond, offset) => execute_jr_cond(cpu, cond, *offset),
         PopR16stk(r16stk) => execute_pop_r16stk(mem_map, cpu, r16stk)?,
         PushR16stk(r16stk) => execute_push_r16stk(mem_map, cpu, r16stk)?,
     });
@@ -605,7 +605,7 @@ fn execute_rrca(cpu: &mut CPU) -> u32 {
     return 1;
 }
 
-fn execute_jr_cond(cpu: &mut CPU, cond: &Cond, offset: i8) -> u32 {
+fn execute_jr_cond(cpu: &mut CPU, cond: &Cond, offset: u8) -> u32 {
     use Cond::*;
     let condition = match cond {
         Z | C => true,
@@ -618,11 +618,12 @@ fn execute_jr_cond(cpu: &mut CPU, cond: &Cond, offset: i8) -> u32 {
     return 3;
 }
 
-fn execute_jr(cpu: &mut CPU, offset: i8) -> u32 {
-    if offset >= 0 {
-        cpu.add_byte(&Register::PC, offset.unsigned_abs());
+fn execute_jr(cpu: &mut CPU, offset: u8) -> u32 {
+    let signed_offset = offset as i16;
+    if signed_offset >= 0 {
+        cpu.add_word(&Register::PC, signed_offset.unsigned_abs());
     } else {
-        cpu.sub_byte(&Register::PC, offset.unsigned_abs());
+        cpu.sub_word(&Register::PC, signed_offset.unsigned_abs());
     }
     return 2;
 }
