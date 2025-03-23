@@ -5,7 +5,7 @@ pub fn bytes_to_word_big_endian(fst: u8, snd: u8) -> u16 {
 
 /// 0x1234 => 0x12, 0x34
 pub fn word_to_bytes_big_endian(word: u16) -> (u8, u8) {
-    return (((word << 8) >> 8) as u8, (word >> 8) as u8);
+    return ((word >> 8) as u8, ((word << 8) >> 8) as u8);
 }
 
 /// 0x12, 0x34 => 0x3412
@@ -29,8 +29,8 @@ pub fn get_word_left_byte(word: u16) -> u8 {
 }
 
 pub fn get_word_right_byte(word: u16) -> u8 {
-    let (fst, _) = word_to_bytes_big_endian(word);
-    return fst;
+    let (_, snd) = word_to_bytes_big_endian(word);
+    return snd;
 }
 
 pub fn set_word_left_byte(word: u16, byte: u8) -> u16 {
