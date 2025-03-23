@@ -60,7 +60,7 @@ fn main() -> eframe::Result<()> {
     //    0b00110001, 0b11000001, 0b11111001, 0b00000001, 0b11111111, 0b10000000, 0b00001010,
     //    0b00000110, 0b11111111, 0b00110010, 0b00101010, 0b00110110, 0b11111111,
     //];
-    let input = read_rom("roms/hello.gb");
+    let input = read_rom("roms/cpu_instrs/individual/03-op sp,hl.gb");
     let program = disassembler::disassemble_program(&input).unwrap();
     println!("Full program:\n{:X?}\n", program);
     let mut mem_map = MemoryMap::new();
