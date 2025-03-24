@@ -17,10 +17,14 @@ pub fn show(
         ui.heading("CPU State");
         ui.label(format!("Registers: {:X?}", app.cpu));
         ui.label(format!("Next instruction: {:X?}", instruction));
-
-        if ui.button("Step").clicked() {
-            app.step_flag = true;
-        }
+        ui.horizontal(|ui| {
+            if ui.button(if app.pause_flag { "▶" } else { "⏸" }).clicked() {
+                app.pause_flag = !app.pause_flag;
+            }
+            if ui.button("⏭").clicked() {
+                app.step_flag = true;
+            }
+        });
     });
 }
 

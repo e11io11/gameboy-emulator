@@ -15,6 +15,7 @@ pub struct EmulatorApp {
     mem_map: MemoryMap,
     cpu: CPU,
     step_flag: bool,
+    pause_flag: bool,
 }
 
 impl EmulatorApp {
@@ -41,7 +42,7 @@ impl eframe::App for EmulatorApp {
         let instruction = self.next_instruction();
         vue::debug::show(ctx, _frame, self, &instruction);
         ctx.request_repaint();
-        if self.step_flag {
+        if !self.pause_flag || self.step_flag {
             self.step(instruction);
         }
     }
@@ -77,6 +78,7 @@ fn main() -> eframe::Result<()> {
                 mem_map,
                 cpu,
                 step_flag: false,
+                pause_flag: false,
             }))
         }),
     )
