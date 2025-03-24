@@ -54,14 +54,7 @@ fn read_rom(path: &str) -> Vec<u8> {
 }
 
 fn main() -> eframe::Result<()> {
-    //let input = [
-    //    0b00001000, 0b00110111, 0b00010001, 0b00010010, 0b00011001, 0b00011111, 0b00110001,
-    //    0b11000001, 0b11111001, 0b00011001, 0b00110010, 0b00110001, 0b11000001, 0b11111001,
-    //    0b00111010, 0b00110111, 0b00010001, 0b00110001, 0b11011101, 0b00011001, 0b00011111,
-    //    0b00110001, 0b11000001, 0b11111001, 0b00000001, 0b11111111, 0b10000000, 0b00001010,
-    //    0b00000110, 0b11111111, 0b00110010, 0b00101010, 0b00110110, 0b11111111,
-    //];
-    let input = read_rom("roms/cpu_instrs/individual/03-op sp,hl.gb");
+    let input = read_rom("roms/cpu_instrs/individual/04-op r,imm.gb");
     let program = disassembler::disassemble_program(&input).unwrap();
     println!("Full program:\n{:X?}\n", program);
     let mut mem_map = MemoryMap::new();
